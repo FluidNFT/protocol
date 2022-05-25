@@ -53,4 +53,31 @@ library DataTypes {
         uint256 liquidationPrice;
         uint40 timestamp;
     }
+
+    struct ExecuteDepositParams {
+        address initiator;
+        address collateral;
+        address asset;
+        uint256 amount;
+        address onBehalfOf;
+        uint16 referralCode;
+    }
+
+    struct ExecuteWithdrawParams {
+        address initiator;
+        address collateral;
+        address asset;
+        uint256 amount;
+        address to;
+    }
+
+    struct ExecuteBorrowParams {
+        address initiator;
+        address asset;
+        uint256 amount;
+        address collateral;
+        uint256 tokenId;
+        address onBehalfOf;
+        uint16 referralCode;
+    }
 }
