@@ -269,15 +269,15 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         nonReentrant
         whenNotPaused
     {
-        (bool success, bytes memory data) = _lendingPoolBidAddress.delegatecall(
-            abi.encodeWithSignature("bid(address,uint256,uint256)", asset,amount,borrowId)
-        );
-        require(success, string(data));
+        // (bool success, bytes memory data) = _lendingPoolBidAddress.delegatecall(
+        //     abi.encodeWithSignature("bid(address,uint256,uint256)", asset,amount,borrowId)
+        // );
+        // require(success, string(data));
         
-        success = abi.decode(data, (bool));
-        require(success, "BID_UNSUCCESSFUL");
+        // success = abi.decode(data, (bool));
+        // require(success, "BID_UNSUCCESSFUL");
 
-        emit Bid(asset, amount, borrowId, _msgSender());
+        // emit Bid(asset, amount, borrowId, _msgSender());
     }
 
     /// @notice External function to create a borrow position.
@@ -301,19 +301,19 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         whenNotPaused
         whenReserveActive(collateral, asset)
     {
-        BorrowLogic.executeBorrow(
-            _reserves,
-            // _nfts,
-            DataTypes.ExecuteBorrowParams({
-                initiator: _msgSender(),
-                asset: asset,
-                amount: amount,
-                collateral: collateral,
-                tokenId: tokenId,
-                onBehalfOf: onBehalfOf,
-                referralCode: referralCode
-            })
-        );
+        // BorrowLogic.executeBorrow(
+        //     _reserves,
+        //     // _nfts,
+        //     DataTypes.ExecuteBorrowParams({
+        //         initiator: _msgSender(),
+        //         asset: asset,
+        //         amount: amount,
+        //         collateral: collateral,
+        //         tokenId: tokenId,
+        //         onBehalfOf: onBehalfOf,
+        //         referralCode: referralCode
+        //     })
+        // );
     }
 
 
@@ -347,15 +347,15 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         whenReserveNotPaused(collateral, asset)
         whenReserveNotProtected(collateral, asset)
     {
-        DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
-        (bool success, bytes memory data) = _lendingPoolLiquidateAddress.delegatecall(
-            abi.encodeWithSignature("liquidate(address,address,uint256)", collateral,asset,borrowId)
-        );
-        require(success, string(data));
+        // DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
+        // (bool success, bytes memory data) = _lendingPoolLiquidateAddress.delegatecall(
+        //     abi.encodeWithSignature("liquidate(address,address,uint256)", collateral,asset,borrowId)
+        // );
+        // require(success, string(data));
 
-        reserve.updateState();
+        // reserve.updateState();
 
-        emit Liquidate(borrowId, _msgSender());
+        // emit Liquidate(borrowId, _msgSender());
     }
 
     /// @notice To redeem a borrow position.
@@ -375,15 +375,15 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         whenNotPaused
         whenReserveNotPaused(collateral, asset)
     {
-        DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
-        (bool success, bytes memory data ) = _lendingPoolRedeemAddress.delegatecall(
-            abi.encodeWithSignature("redeem(address,address,uint256,uint256)", collateral,asset,redeemAmount,borrowId)
-        );
-        require(success, string(data)); 
+        // DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
+        // (bool success, bytes memory data ) = _lendingPoolRedeemAddress.delegatecall(
+        //     abi.encodeWithSignature("redeem(address,address,uint256,uint256)", collateral,asset,redeemAmount,borrowId)
+        // );
+        // require(success, string(data)); 
 
-        reserve.updateState();
+        // reserve.updateState();
 
-        emit Redeem(borrowId, asset, redeemAmount, _msgSender());
+        // emit Redeem(borrowId, asset, redeemAmount, _msgSender());
     }
 
     /// @notice To repay a borrow position.
@@ -403,16 +403,16 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         whenNotPaused
         whenReserveNotPaused(collateral, asset)
     {
-        DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
-        (bool success, bytes memory data ) = _lendingPoolRepayAddress.delegatecall(
-            abi.encodeWithSignature("repay(address,address,uint256,uint256)", collateral,asset,repaymentAmount,borrowId)
-        );
-        require(success, string(data)); 
+        // DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
+        // (bool success, bytes memory data ) = _lendingPoolRepayAddress.delegatecall(
+        //     abi.encodeWithSignature("repay(address,address,uint256,uint256)", collateral,asset,repaymentAmount,borrowId)
+        // );
+        // require(success, string(data)); 
 
-        (success, repaymentAmount) = abi.decode(data, (bool, uint256));
-        reserve.updateState();
+        // (success, repaymentAmount) = abi.decode(data, (bool, uint256));
+        // reserve.updateState();
 
-        emit Repay(borrowId, asset, repaymentAmount, _msgSender());
+        // emit Repay(borrowId, asset, repaymentAmount, _msgSender());
     }
 
     /// @notice Pauses the contract `deposit`, `withdraw`, `borrow` and `repay` functions.

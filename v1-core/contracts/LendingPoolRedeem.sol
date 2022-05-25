@@ -80,89 +80,90 @@ contract LendingPoolRedeem is Context, LendingPoolStorage, LendingPoolLogic, ILe
         // onlyLendingPool
         returns (bool)
     { 
-        RedeemVars memory vars;
-        vars.borrowItem = ICollateralManager(
-            _collateralManagerAddress
-        ).getBorrow(borrowId);
-        DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(vars.borrowItem.collateral.erc721Token, asset))];  
+        // RedeemVars memory vars;
+        // vars.borrowItem = ICollateralManager(
+        //     _collateralManagerAddress
+        // ).getBorrow(borrowId);
+        // DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(vars.borrowItem.collateral.erc721Token, asset))];  
         
 
-        require(vars.borrowItem.borrower == _msgSender(), "NOT_BORROWER");
-        require(vars.borrowItem.erc20Token == asset, "INCORRECT_ASSET");
-        require(vars.borrowItem.collateral.erc721Token == collateral, "INCORRECT_COLLATERAL");
-        require(vars.borrowItem.status == DataTypes.BorrowStatus.ActiveAuction, "INACTIVE_AUCTION");
+        // require(vars.borrowItem.borrower == _msgSender(), "NOT_BORROWER");
+        // require(vars.borrowItem.erc20Token == asset, "INCORRECT_ASSET");
+        // require(vars.borrowItem.collateral.erc721Token == collateral, "INCORRECT_COLLATERAL");
+        // require(vars.borrowItem.status == DataTypes.BorrowStatus.ActiveAuction, "INACTIVE_AUCTION");
 
-        vars.borrowBalanceAmount = vars.borrowItem.borrowAmount.rayMul(
-            InterestLogic.calculateLinearInterest(vars.borrowItem.interestRate, vars.borrowItem.timestamp)
-        );
-        require(redeemAmount > vars.borrowItem.auction.liquidationFee, "INSUFFICIENT_AMOUNT"); 
-        vars.repaymentAmount = redeemAmount - vars.borrowItem.auction.liquidationFee;
-        require(vars.repaymentAmount <= vars.borrowBalanceAmount , "OVERPAYMENT"); 
+        // vars.borrowBalanceAmount = vars.borrowItem.borrowAmount.rayMul(
+        //     InterestLogic.calculateLinearInterest(vars.borrowItem.interestRate, vars.borrowItem.timestamp)
+        // );
+        // require(redeemAmount > vars.borrowItem.auction.liquidationFee, "INSUFFICIENT_AMOUNT"); 
+        // vars.repaymentAmount = redeemAmount - vars.borrowItem.auction.liquidationFee;
+        // require(vars.repaymentAmount <= vars.borrowBalanceAmount , "OVERPAYMENT"); 
 
-        vars.floorPrice = INFTPriceConsumer(_nftPriceConsumerAddress).getFloorPrice(vars.borrowItem.collateral.erc721Token);
-        if (keccak256(abi.encodePacked(_assetNames[asset])) != keccak256(abi.encodePacked("WETH"))) {
-            vars.floorPrice = vars.floorPrice.mul(ITokenPriceConsumer(_tokenPriceConsumerAddress).getEthPrice(asset));
-        }
-        vars.liquidationThreshold = vars.borrowItem.liquidationPrice.mul(100).div(vars.borrowItem.borrowAmount);
-        require(vars.borrowBalanceAmount - vars.repaymentAmount < vars.floorPrice.mul(100).div(vars.liquidationThreshold), "INSUFFICIENT_AMOUNT");
+        // vars.floorPrice = INFTPriceConsumer(_nftPriceConsumerAddress).getFloorPrice(vars.borrowItem.collateral.erc721Token);
+        // if (keccak256(abi.encodePacked(_assetNames[asset])) != keccak256(abi.encodePacked("WETH"))) {
+        //     vars.floorPrice = vars.floorPrice.mul(ITokenPriceConsumer(_tokenPriceConsumerAddress).getEthPrice(asset));
+        // }
+        // vars.liquidationThreshold = vars.borrowItem.liquidationPrice.mul(100).div(vars.borrowItem.borrowAmount);
+        // require(vars.borrowBalanceAmount - vars.repaymentAmount < vars.floorPrice.mul(100).div(vars.liquidationThreshold), "INSUFFICIENT_AMOUNT");
         
-        vars.success = IERC20(asset).transferFrom(_msgSender(), reserve.fTokenAddress, vars.repaymentAmount);
-        require(vars.success, "UNSUCCESSFUL_TRANSFER_TO_RESERVE");
+        // vars.success = IERC20(asset).transferFrom(_msgSender(), reserve.fTokenAddress, vars.repaymentAmount);
+        // require(vars.success, "UNSUCCESSFUL_TRANSFER_TO_RESERVE");
         
-        vars.success = IDebtToken(reserve.debtTokenAddress).burnFrom(_msgSender(), vars.repaymentAmount);
-        require(vars.success, "UNSUCCESSFUL_BURN");
+        // vars.success = IDebtToken(reserve.debtTokenAddress).burnFrom(_msgSender(), vars.repaymentAmount);
+        // require(vars.success, "UNSUCCESSFUL_BURN");
        
-        vars.success = IERC20(asset).transferFrom(_msgSender(), vars.borrowItem.auction.caller, vars.borrowItem.auction.liquidationFee);
-        require(vars.success, "UNSUCCESSFUL_TRANSFER_TO_AUCTION_CALLER");
+        // vars.success = IERC20(asset).transferFrom(_msgSender(), vars.borrowItem.auction.caller, vars.borrowItem.auction.liquidationFee);
+        // require(vars.success, "UNSUCCESSFUL_TRANSFER_TO_AUCTION_CALLER");
 
-        if (redeemAmount < vars.borrowBalanceAmount + vars.borrowItem.auction.liquidationFee) {
-            (vars.success, vars.borrowAmount, vars.interestRate) = ICollateralManager(_collateralManagerAddress).updateBorrow(
-                borrowId, 
-                asset,
-                vars.repaymentAmount,
-                vars.floorPrice,
-                DataTypes.BorrowStatus.Active,
-                true, // isRepayment
-                _msgSender()
-            );
-            require(vars.success, "UNSUCCESSFUL_PARTIAL_REDEEM");
-        } else {
-            (vars.success,,) = ICollateralManager(_collateralManagerAddress).withdraw(
-                borrowId, 
-                asset, 
-                vars.borrowBalanceAmount
-            );
-            require(vars.success, "UNSUCCESSFUL_WITHDRAW");
-            (vars.success, vars.borrowAmount, vars.interestRate) = ICollateralManager(_collateralManagerAddress).updateBorrow(
-                borrowId, 
-                asset,
-                vars.repaymentAmount,
-                vars.floorPrice,
-                DataTypes.BorrowStatus.Repaid,
-                true, // isRepayment
-                _msgSender()
-            );
-            require(vars.success, "UNSUCCESSFUL_FULL_REDEEM");
-        } 
+        // if (redeemAmount < vars.borrowBalanceAmount + vars.borrowItem.auction.liquidationFee) {
+        //     (vars.success, vars.borrowAmount, vars.interestRate) = ICollateralManager(_collateralManagerAddress).updateBorrow(
+        //         borrowId, 
+        //         asset,
+        //         vars.repaymentAmount,
+        //         vars.floorPrice,
+        //         DataTypes.BorrowStatus.Active,
+        //         true, // isRepayment
+        //         _msgSender()
+        //     );
+        //     require(vars.success, "UNSUCCESSFUL_PARTIAL_REDEEM");
+        // } else {
+        //     (vars.success,,) = ICollateralManager(_collateralManagerAddress).withdraw(
+        //         borrowId, 
+        //         asset, 
+        //         vars.borrowBalanceAmount
+        //     );
+        //     require(vars.success, "UNSUCCESSFUL_WITHDRAW");
+        //     (vars.success, vars.borrowAmount, vars.interestRate) = ICollateralManager(_collateralManagerAddress).updateBorrow(
+        //         borrowId, 
+        //         asset,
+        //         vars.repaymentAmount,
+        //         vars.floorPrice,
+        //         DataTypes.BorrowStatus.Repaid,
+        //         true, // isRepayment
+        //         _msgSender()
+        //     );
+        //     require(vars.success, "UNSUCCESSFUL_FULL_REDEEM");
+        // } 
 
-        // Update reserve borrow numbers - for use in APR calculation
-        if (reserve.borrowAmount.sub(vars.borrowAmount) > 0) {
-            reserve.borrowRate = WadRayMath.rayDiv(
-                WadRayMath.rayMul(
-                    WadRayMath.wadToRay(reserve.borrowAmount), reserve.borrowRate
-                ).sub(
-                    WadRayMath.rayMul(
-                        WadRayMath.wadToRay(vars.borrowAmount), vars.interestRate 
-                    )    
-                ), (WadRayMath.wadToRay(reserve.borrowAmount).sub(WadRayMath.wadToRay(vars.borrowAmount)))
-            );
-        } else {
-            reserve.borrowRate  = 0;
-        }
+        // // Update reserve borrow numbers - for use in APR calculation
+        // if (reserve.borrowAmount.sub(vars.borrowAmount) > 0) {
+        //     reserve.borrowRate = WadRayMath.rayDiv(
+        //         WadRayMath.rayMul(
+        //             WadRayMath.wadToRay(reserve.borrowAmount), reserve.borrowRate
+        //         ).sub(
+        //             WadRayMath.rayMul(
+        //                 WadRayMath.wadToRay(vars.borrowAmount), vars.interestRate 
+        //             )    
+        //         ), (WadRayMath.wadToRay(reserve.borrowAmount).sub(WadRayMath.wadToRay(vars.borrowAmount)))
+        //     );
+        // } else {
+        //     reserve.borrowRate  = 0;
+        // }
 
-        reserve.borrowAmount = reserve.borrowAmount.sub(vars.borrowAmount);
+        // reserve.borrowAmount = reserve.borrowAmount.sub(vars.borrowAmount);
 
-        return vars.success;
+        // return vars.success;
+        return true;
     }
 
 }

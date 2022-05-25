@@ -59,19 +59,19 @@ contract LendingPoolWithdraw is Context, LendingPoolStorage, LendingPoolLogic, I
         returns (bool) 
     {
         bool success;
-        DataTypes.Reserve memory reserve = _reserves[keccak256(abi.encode(collateral, asset))];        
-        address fToken = reserve.fTokenAddress;
+        // DataTypes.Reserve memory reserve = _reserves[keccak256(abi.encode(collateral, asset))];        
+        // address fToken = reserve.fTokenAddress;
 
-        uint256 fTokenBalance = IFToken(fToken).balanceOf(_msgSender());
-        require(fTokenBalance >= amount, "INSUFFICIENT_BALANCE");
+        // uint256 fTokenBalance = IFToken(fToken).balanceOf(_msgSender());
+        // require(fTokenBalance >= amount, "INSUFFICIENT_BALANCE");
 
-        uint256 liquidityIndex = getLiquidityIndex(collateral, asset);
+        // uint256 liquidityIndex = getLiquidityIndex(collateral, asset);
 
-        success = IFToken(fToken).burnFrom(_msgSender(), amount, liquidityIndex);
-        require(success, "UNSUCCESSFUL_BURN");
+        // success = IFToken(fToken).burnFrom(_msgSender(), amount, liquidityIndex);
+        // require(success, "UNSUCCESSFUL_BURN");
 
-        success = IFToken(fToken).reserveTransfer(_msgSender(), asset, amount);
-        require(success, "UNSUCCESSFUL_TRANSFER");
+        // success = IFToken(fToken).reserveTransfer(_msgSender(), asset, amount);
+        // require(success, "UNSUCCESSFUL_TRANSFER");
         
         return success;
     }

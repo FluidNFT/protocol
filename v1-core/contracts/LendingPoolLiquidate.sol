@@ -76,72 +76,73 @@ contract LendingPoolLiquidate is Context, LendingPoolStorage, LendingPoolLogic, 
         // onlyLendingPool
         returns (bool)
     {
-        uint40 auctionDuration = getAuctionDuration();
-        DataTypes.Borrow memory borrowItem = ICollateralManager(
-            _collateralManagerAddress
-        ).getBorrow(borrowId);
-        DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(borrowItem.collateral.erc721Token, borrowItem.erc20Token))]; 
-        LiquidateVars memory vars;
+        // uint40 auctionDuration = getAuctionDuration();
+        // DataTypes.Borrow memory borrowItem = ICollateralManager(
+        //     _collateralManagerAddress
+        // ).getBorrow(borrowId);
+        // DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(borrowItem.collateral.erc721Token, borrowItem.erc20Token))]; 
+        // LiquidateVars memory vars;
 
-        require(borrowItem.status == DataTypes.BorrowStatus.ActiveAuction, "AUCTION_NOT_TRIGGERED");
-        require(uint40(block.timestamp) - borrowItem.auction.timestamp > auctionDuration, "AUCTION_STILL_ACTIVE"); 
-        // require(borrowItem.erc20Token == asset, "INCORRECT_ASSET");
-        // require(borrowItem.collateral.erc721Token == collateral, "INCORRECT_COLLATERAL");
+        // require(borrowItem.status == DataTypes.BorrowStatus.ActiveAuction, "AUCTION_NOT_TRIGGERED");
+        // require(uint40(block.timestamp) - borrowItem.auction.timestamp > auctionDuration, "AUCTION_STILL_ACTIVE"); 
+        // // require(borrowItem.erc20Token == asset, "INCORRECT_ASSET");
+        // // require(borrowItem.collateral.erc721Token == collateral, "INCORRECT_COLLATERAL");
 
-        vars.success = IFToken(reserve.fTokenAddress).reserveTransfer(borrowItem.auction.caller, borrowItem.erc20Token, borrowItem.auction.liquidationFee);
-        require(vars.success, "UNSUCCESSFUL_TRANSFER_TO_AUCTION_CALLER");
+        // vars.success = IFToken(reserve.fTokenAddress).reserveTransfer(borrowItem.auction.caller, borrowItem.erc20Token, borrowItem.auction.liquidationFee);
+        // require(vars.success, "UNSUCCESSFUL_TRANSFER_TO_AUCTION_CALLER");
 
-        vars.repaymentAmount = borrowItem.borrowAmount
-            .add(
-                (borrowItem.borrowAmount)
-                .rayMul(borrowItem.interestRate)
-                .mul(block.timestamp.sub(borrowItem.timestamp))
-                .div(365 days)
-            );
-        vars.remainderAmount = borrowItem.auction.bid.sub(vars.repaymentAmount);
-        vars.reimbursementAmount = vars.remainderAmount.sub(borrowItem.auction.liquidationFee);
+        // vars.repaymentAmount = borrowItem.borrowAmount
+        //     .add(
+        //         (borrowItem.borrowAmount)
+        //         .rayMul(borrowItem.interestRate)
+        //         .mul(block.timestamp.sub(borrowItem.timestamp))
+        //         .div(365 days)
+        //     );
+        // vars.remainderAmount = borrowItem.auction.bid.sub(vars.repaymentAmount);
+        // vars.reimbursementAmount = vars.remainderAmount.sub(borrowItem.auction.liquidationFee);
 
-        uint256 liquidationFeeToCaller = borrowItem.auction.liquidationFee.mul(90).div(100); // TODO: make this updatable. E.g. this split is 4.5% to Caller and 0.5% to Protocol to cover dust
-        uint256 liquidationFeeToProtocol = borrowItem.auction.liquidationFee - liquidationFeeToCaller;
+        // uint256 liquidationFeeToCaller = borrowItem.auction.liquidationFee.mul(90).div(100); // TODO: make this updatable. E.g. this split is 4.5% to Caller and 0.5% to Protocol to cover dust
+        // uint256 liquidationFeeToProtocol = borrowItem.auction.liquidationFee - liquidationFeeToCaller;
 
-        vars.success = IFToken(reserve.fTokenAddress).reserveTransfer(borrowItem.auction.caller, borrowItem.erc20Token, liquidationFeeToCaller);
-        require(vars.success, "UNSUCCESSFUL_TRANSFER_TO_AUCTION_CALLER");
+        // vars.success = IFToken(reserve.fTokenAddress).reserveTransfer(borrowItem.auction.caller, borrowItem.erc20Token, liquidationFeeToCaller);
+        // require(vars.success, "UNSUCCESSFUL_TRANSFER_TO_AUCTION_CALLER");
 
-        vars.success = IFToken(reserve.fTokenAddress).reserveTransfer(_treasuryAddress, borrowItem.erc20Token, liquidationFeeToProtocol);
-        require(vars.success, "UNSUCCESSFUL_TRANSFER_TO_AUCTION_CALLER");
+        // vars.success = IFToken(reserve.fTokenAddress).reserveTransfer(_treasuryAddress, borrowItem.erc20Token, liquidationFeeToProtocol);
+        // require(vars.success, "UNSUCCESSFUL_TRANSFER_TO_AUCTION_CALLER");
 
-        vars.success = IFToken(reserve.fTokenAddress).reserveTransfer(borrowItem.borrower, borrowItem.erc20Token, vars.reimbursementAmount);
-        require(vars.success, "UNSUCCESSFUL_TRANSFER_TO_BORROWER");
+        // vars.success = IFToken(reserve.fTokenAddress).reserveTransfer(borrowItem.borrower, borrowItem.erc20Token, vars.reimbursementAmount);
+        // require(vars.success, "UNSUCCESSFUL_TRANSFER_TO_BORROWER");
 
-        vars.success = IDebtToken(reserve.debtTokenAddress).burnFrom(borrowItem.borrower, vars.repaymentAmount);
-        require(vars.success, "UNSUCCESSFUL_BURN");
+        // vars.success = IDebtToken(reserve.debtTokenAddress).burnFrom(borrowItem.borrower, vars.repaymentAmount);
+        // require(vars.success, "UNSUCCESSFUL_BURN");
 
-        vars.success = ICollateralManager(_collateralManagerAddress).retrieve(
-            borrowId, 
-            borrowItem.erc20Token, 
-            vars.repaymentAmount,
-            borrowItem.auction.bidder
-        );
-        require(vars.success, "UNSUCCESSFUL_RETRIEVE");
+        // vars.success = ICollateralManager(_collateralManagerAddress).retrieve(
+        //     borrowId, 
+        //     borrowItem.erc20Token, 
+        //     vars.repaymentAmount,
+        //     borrowItem.auction.bidder
+        // );
+        // require(vars.success, "UNSUCCESSFUL_RETRIEVE");
    
-        // Update reserve borrow numbers - for use in APR calculation
-        if (reserve.borrowAmount.sub(borrowItem.borrowAmount) > 0) {
-            reserve.borrowRate = WadRayMath.rayDiv(
-                WadRayMath.rayMul(
-                    WadRayMath.wadToRay(reserve.borrowAmount), reserve.borrowRate
-                ).sub(
-                    WadRayMath.rayMul(
-                        WadRayMath.wadToRay(borrowItem.borrowAmount), borrowItem.interestRate 
-                    )    
-                ), (WadRayMath.wadToRay(reserve.borrowAmount).sub(WadRayMath.wadToRay(borrowItem.borrowAmount)))
-            );
-        } else {
-            reserve.borrowRate  = 0;
-        }
+        // // Update reserve borrow numbers - for use in APR calculation
+        // if (reserve.borrowAmount.sub(borrowItem.borrowAmount) > 0) {
+        //     reserve.borrowRate = WadRayMath.rayDiv(
+        //         WadRayMath.rayMul(
+        //             WadRayMath.wadToRay(reserve.borrowAmount), reserve.borrowRate
+        //         ).sub(
+        //             WadRayMath.rayMul(
+        //                 WadRayMath.wadToRay(borrowItem.borrowAmount), borrowItem.interestRate 
+        //             )    
+        //         ), (WadRayMath.wadToRay(reserve.borrowAmount).sub(WadRayMath.wadToRay(borrowItem.borrowAmount)))
+        //     );
+        // } else {
+        //     reserve.borrowRate  = 0;
+        // }
 
-        reserve.borrowAmount = reserve.borrowAmount.sub(borrowItem.borrowAmount);
+        // reserve.borrowAmount = reserve.borrowAmount.sub(borrowItem.borrowAmount);
 
-        return vars.success;
+        // return vars.success;
+        return true;
     }
 
 }
