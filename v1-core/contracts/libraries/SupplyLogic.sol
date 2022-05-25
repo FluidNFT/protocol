@@ -196,7 +196,7 @@ library SupplyLogic {
 
         // TODO: Update Interest Rates
         // reserve.updateInterestRates(params.asset, fToken, 0, amountToWithdraw);
-
+    
         IFToken(fToken).burn(params.initiator, params.to, amountToWithdraw, reserve.liquidityIndex);
 
         emit Withdraw(params.initiator, params.collateral, params.asset, amountToWithdraw, params.to);
