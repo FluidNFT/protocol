@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Pausable.sol";
 import { ILendingPool } from './interfaces/ILendingPool.sol';
 import { IFToken } from './interfaces/IFToken.sol';
 import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import { SafeMath } from '@openzeppelin/contracts/utils/math/SafeMath.sol';
 import "./WadRayMath.sol";
@@ -20,6 +21,7 @@ import "hardhat/console.sol";
 contract FToken is Context, ERC20Pausable, IFToken, AccessControl, ReentrancyGuard {
     using SafeMath for uint256;
     using WadRayMath for uint256;
+    using SafeERC20 for IERC20;
     
     bytes32 public constant CONFIGURATOR_ROLE = keccak256("CONFIGURATOR_ROLE");
     bytes32 public constant LENDING_POOL_ROLE = keccak256("LENDING_POOL_ROLE");
@@ -88,7 +90,7 @@ contract FToken is Context, ERC20Pausable, IFToken, AccessControl, ReentrancyGua
     /// @param to The account.
     /// @param amount The amount of FTokens.
     /// @dev Calls the underlying ERC20 `_mint` function.
-    /// @return Boolean for execution success.
+    /// @return `true` if the previous balance of `to` user address was 0.
     function mint(
         address to, 
         uint256 amount,
@@ -98,23 +100,29 @@ contract FToken is Context, ERC20Pausable, IFToken, AccessControl, ReentrancyGua
         virtual 
         override 
         nonReentrant
-        // onlyLendingPool 
+        onlyLendingPool 
         whenNotPaused 
         returns (bool)
     {
+        uint256 previousBalance = super.balanceOf(to);
+
         uint256 amountScaled = amount.rayDiv(liquidityIndex);
         require(amountScaled != 0, "MINT_AMOUNT_ZERO");
         _mint(to, amountScaled);
         
         emit Mint(to, amount, amountScaled);
-        return true;
+        return previousBalance == 0;
     }
 
     /// @notice Burns an amount of FTokens from the _msgSender() account.
+    /// @param initiator The amount of FTokens.
+    /// @param receiverOfUnderlying The receiver of the underlying tokens.
     /// @param amount The amount of FTokens.
+    /// @param liquidityIndex The liquidity index.
     /// @dev Calls the underlying ERC20 `_burn` function.
-    /// @return Boolean for execution success.
     function burn(
+        address initiator,
+        address receiverOfUnderlying,
         uint256 amount,
         uint256 liquidityIndex
     ) 
@@ -122,58 +130,56 @@ contract FToken is Context, ERC20Pausable, IFToken, AccessControl, ReentrancyGua
         virtual 
         override
         nonReentrant 
-        // onlyLendingPool 
+        onlyLendingPool 
         whenNotPaused  
-        returns (bool)
     {
         uint256 amountScaled = amount.rayDiv(liquidityIndex);
         require(amountScaled != 0, "BURN_AMOUNT_ZERO");
 
-        _burn(_msgSender(), amountScaled);
+        _burn(initiator, amountScaled);
 
-        emit Burn(_msgSender(), amount, amountScaled);
-        return true;
+        IERC20(_underlyingAsset).safeTransfer(receiverOfUnderlying, amount);
+
+        emit Burn(initiator, amount, amountScaled);
     }
 
-    /// @notice Burns an amount of FTokens from a given account.
-    /// @param account The account.
-    /// @param amount The amount of debt tokens.
-    /// @dev Calls the underlying ERC20 `_burn` function.
-    /// @return Boolean for execution success.
-    function burnFrom(
-        address account, 
-        uint256 amount,
-        uint256 liquidityIndex
-    ) 
-        external 
-        virtual 
-        override 
-        nonReentrant
-        // onlyLendingPool 
-        whenNotPaused 
-        returns (bool)
-    {
-        uint256 amountScaled = amount.rayDiv(liquidityIndex);
-        require(amountScaled != 0, "BURN_FROM_AMOUNT_ZERO");
-        uint256 currentAllowance = allowance(account, _msgSender());
-        require(currentAllowance >= amountScaled, "ERC20: burn amount exceeds allowance");
-        unchecked {
-            _approve(account, _msgSender(), currentAllowance - amountScaled);
-        }
-        _burn(account, amountScaled);
-        emit Burn(account, amount, amountScaled);
-        return true;
-    }
+    // /// @notice Burns an amount of FTokens from a given account.
+    // /// @param account The account.
+    // /// @param amount The amount of debt tokens.
+    // /// @dev Calls the underlying ERC20 `_burn` function.
+    // /// @return Boolean for execution success.
+    // function burnFrom(
+    //     address account, 
+    //     uint256 amount,
+    //     uint256 liquidityIndex
+    // ) 
+    //     external 
+    //     virtual 
+    //     override 
+    //     nonReentrant
+    //     // onlyLendingPool 
+    //     whenNotPaused 
+    //     returns (bool)
+    // {
+    //     uint256 amountScaled = amount.rayDiv(liquidityIndex);
+    //     require(amountScaled != 0, "BURN_FROM_AMOUNT_ZERO");
+    //     uint256 currentAllowance = allowance(account, _msgSender());
+    //     require(currentAllowance >= amountScaled, "ERC20: burn amount exceeds allowance");
+    //     unchecked {
+    //         _approve(account, _msgSender(), currentAllowance - amountScaled);
+    //     }
+    //     _burn(account, amountScaled);
+    //     emit Burn(account, amount, amountScaled);
+    //     return true;
+    // }
 
     /// @notice Transfer of Asset tokens from the reserve.
     /// @param to The recipient account.
-    /// @param asset The Asset token.
     /// @param amount The amount of Asset tokens.
     /// @dev Asset tokens reclaimed from the FToken reserve.
-    /// @return Boolean for execution success.
+    /// @return The amount transferred.
     function reserveTransfer(
         address to, 
-        address asset, 
         uint256 amount
     ) 
         external 
@@ -182,16 +188,11 @@ contract FToken is Context, ERC20Pausable, IFToken, AccessControl, ReentrancyGua
         nonReentrant
         onlyLendingPool 
         whenNotPaused
-        returns (bool)
+        returns (uint256)
     {
-        bool success;
-        require(IERC20(asset).balanceOf(address(this)) >= amount, "Insufficient supply of asset token in reserve.");
-        success = IERC20(asset).approve(to, amount);
-        require(success, "UNSUCCESSFUL_APPROVE");
-        success = IERC20(asset).transfer(to, amount);
-        require(success, "UNSUCCESSFUL_TRANSFER");
-        emit ReserveTransfer(address(this), to, amount);
-        return success;
+        require(IERC20(_underlyingAsset).balanceOf(address(this)) >= amount, "Insufficient supply of asset token in reserve.");
+        IERC20(_underlyingAsset).safeTransfer(to, amount);
+        return amount;
     }
 
     /// @notice Transfers Asset tokens to the reserve.
