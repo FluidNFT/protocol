@@ -94,4 +94,16 @@ library DataTypes {
         address nftPriceConsumerAddress;
         address collateralManagerAddress;
     }
+
+    struct ExecuteLiquidateParams {
+        address initiator;
+        address collateral;
+        address asset;
+        uint256 borrowId;
+        address tokenPriceConsumerAddress;
+        address nftPriceConsumerAddress;
+        address collateralManagerAddress;
+        address treasuryAddress;
+        uint40 auctionDuration;
+    }
 }

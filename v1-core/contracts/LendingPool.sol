@@ -23,6 +23,7 @@ import { DataTypes } from "./libraries/DataTypes.sol";
 import { ReserveLogic } from "./libraries/ReserveLogic.sol";
 import { SupplyLogic } from "./libraries/SupplyLogic.sol";
 import { BorrowLogic } from "./libraries/BorrowLogic.sol";
+import { LiquidateLogic } from "./libraries/LiquidateLogic.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import { SafeMath } from '@openzeppelin/contracts/utils/math/SafeMath.sol';
 import "./WadRayMath.sol";
@@ -269,15 +270,15 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         nonReentrant
         whenNotPaused
     {
-        // (bool success, bytes memory data) = _lendingPoolBidAddress.delegatecall(
-        //     abi.encodeWithSignature("bid(address,uint256,uint256)", asset,amount,borrowId)
-        // );
-        // require(success, string(data));
+        (bool success, bytes memory data) = _lendingPoolBidAddress.delegatecall(
+            abi.encodeWithSignature("bid(address,uint256,uint256)", asset,amount,borrowId)
+        );
+        require(success, string(data));
         
-        // success = abi.decode(data, (bool));
-        // require(success, "BID_UNSUCCESSFUL");
+        success = abi.decode(data, (bool));
+        require(success, "BID_UNSUCCESSFUL");
 
-        // emit Bid(asset, amount, borrowId, _msgSender());
+        emit Bid(asset, amount, borrowId, _msgSender());
     }
 
     /// @notice External function to create a borrow position.
@@ -351,6 +352,24 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         whenReserveNotPaused(collateral, asset)
         whenReserveNotProtected(collateral, asset)
     {
+        LiquidateLogic.executeLiquidate(
+            _assetNames,
+            _reserves,
+            // _nfts,
+            DataTypes.ExecuteLiquidateParams({
+                initiator: _msgSender(),
+                collateral: collateral,
+                asset: asset,
+                borrowId: borrowId,
+                tokenPriceConsumerAddress: _tokenPriceConsumerAddress,
+                nftPriceConsumerAddress: _nftPriceConsumerAddress,
+                collateralManagerAddress: _collateralManagerAddress,
+                treasuryAddress: _treasuryAddress,
+                auctionDuration: _auctionDuration
+            })
+        );
+
+
         // DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
         // (bool success, bytes memory data) = _lendingPoolLiquidateAddress.delegatecall(
         //     abi.encodeWithSignature("liquidate(address,address,uint256)", collateral,asset,borrowId)
