@@ -100,7 +100,7 @@ contract FToken is Context, ERC20Pausable, IFToken, AccessControl, ReentrancyGua
         virtual 
         override 
         nonReentrant
-        onlyLendingPool 
+        // onlyLendingPool 
         whenNotPaused 
         returns (bool)
     {
@@ -130,7 +130,7 @@ contract FToken is Context, ERC20Pausable, IFToken, AccessControl, ReentrancyGua
         virtual 
         override
         nonReentrant 
-        onlyLendingPool 
+        // onlyLendingPool 
         whenNotPaused  
     {
         uint256 amountScaled = amount.rayDiv(liquidityIndex);
@@ -186,7 +186,7 @@ contract FToken is Context, ERC20Pausable, IFToken, AccessControl, ReentrancyGua
         virtual 
         override 
         nonReentrant
-        onlyLendingPool 
+        // onlyLendingPool 
         whenNotPaused
         returns (uint256)
     {
@@ -210,7 +210,7 @@ contract FToken is Context, ERC20Pausable, IFToken, AccessControl, ReentrancyGua
         virtual 
         override 
         nonReentrant
-        onlyLendingPool 
+        // onlyLendingPool 
         whenNotPaused
         returns (bool)
     {

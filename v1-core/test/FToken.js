@@ -1,6 +1,10 @@
 const { expect } = require('chai');
 const { ethers } = require('hardhat');
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
 beforeEach(async function() {
     hhAssetTokenSupply = ethers.utils.parseUnits('10000000', 18); //3*10**numDecimals;
     hhAssetTokenInitialBalance = ethers.utils.parseUnits('1000000', 18);
@@ -24,8 +28,18 @@ beforeEach(async function() {
     hhTokenPriceConsumer = await TokenPriceConsumer.deploy("0xAa7F6f7f507457a1EE157fE97F6c7DB2BEec5cD0");
     hhTokenPriceConsumerAddress = await hhTokenPriceConsumer.resolvedAddress;
 
+    // Get and deploy SupplyLogic Library
+    SupplyLogicLib = await ethers.getContractFactory('SupplyLogic');
+    hhSupplyLogicLib = await SupplyLogicLib.deploy();
+    await hhSupplyLogicLib.deployed();
+    hhSupplyLogicLibAddress = await hhSupplyLogicLib.resolvedAddress;
+
     // Get and deploy LendingPool
-    LendingPool = await ethers.getContractFactory('LendingPool');
+    LendingPool = await ethers.getContractFactory('LendingPool', {
+        libraries: {
+            SupplyLogic: hhSupplyLogicLibAddress
+        }
+    });
     hhLendingPool = await LendingPool.deploy(
         hhConfiguratorAddress,
         treasury.address
@@ -153,7 +167,7 @@ beforeEach(async function() {
     // await hhDebtToken.setBurner(hhLendingPoolAddress);
 
     // // Transfer funds to alice and bob
-    // await hhAssetToken.transfer(alice.address, hhAssetTokenInitialBalance.toString());
+    await hhAssetToken.transfer(alice.address, hhAssetTokenInitialBalance.toString());
     // await hhAssetToken.transfer(bob.address, hhAssetTokenInitialBalance.toString());
 
 
@@ -169,6 +183,13 @@ async function initReserve() {
         hhDebtToken.address,
         "WETH"
     )
+}
+
+async function deposit(initiator, poolCollateralAddress, assetToken, tokenAmount, onBehalfOf, referralCode) {
+    // Approve transferFrom lendingPool 
+    await assetToken.connect(initiator).approve(hhLendingPoolAddress, tokenAmount);
+    // Deposit in hhFToken contract reserve
+    return hhLendingPool.connect(initiator).deposit(poolCollateralAddress, assetToken.address, tokenAmount, onBehalfOf, referralCode); 
 }
 
 describe('FToken >> LendingPool >> Init', function() {
@@ -206,44 +227,33 @@ describe('FToken', function() {
         .withArgs(alice.address, amount, amountDivliquidityIndex);
 
         let newBalance = await hhFToken.balanceOf(alice.address);
-        await expect(newBalance).to.equal(amount);
+        expect(newBalance).to.equal(amount);
     }) 
 
     // NOTE: comment-out function modifier "onlyLendingPool" to run 
     it('should burn fTokens', async function () {
         await initReserve();
 
-        await hhFToken.connect(lendingPool).mint(lendingPool.address, amount, liquidityIndex);
-        
-        await expect(hhFToken.connect(lendingPool).burn(amount, liquidityIndex))
-        .to.emit(hhFToken, 'Burn')
-        .withArgs(lendingPool.address, amount, amountDivliquidityIndex);
+        await deposit(alice, hhNFT.address, hhAssetToken, amount, alice.address, '123');
 
-        let newBalance = await hhFToken.balanceOf(alice.address);
-        await expect(newBalance).to.equal(amount.sub(amount));
-    });
+        // Event polling every 4 seconds
+        // https://hardhat.org/plugins/nomiclabs-hardhat-ethers.html
+        await sleep(4000);
 
-    // NOTE: comment-out function modifier "onlyLendingPool" to run 
-    it('should burn fTokens from alice', async function () {
-        let liquidityIndex = ethers.utils.parseUnits('1', 27); 
-        let amount = ethers.utils.parseUnits('4.5', 18);
-        let amountDivliquidityIndex = ethers.utils.parseUnits('4.5', 18); 
+        let newAssetBalance = await hhAssetToken.balanceOf(alice.address);
+        expect(newAssetBalance).to.equal(hhAssetTokenInitialBalance.sub(amount));
 
-        await initReserve();
-
-        await hhFToken.mint(alice.address, amount, liquidityIndex);
-        
-        let balanceBefore = await hhFToken.balanceOf(alice.address);
-        await hhFToken.connect(alice).approve(alice.address, amount);
-        await expect(hhFToken.connect(alice).burnFrom(alice.address, amount, liquidityIndex))
+        await expect(hhFToken.connect(lendingPool).burn(alice.address, alice.address, amount, liquidityIndex))
         .to.emit(hhFToken, 'Burn')
         .withArgs(alice.address, amount, amountDivliquidityIndex);
 
-        let balanceAfter = await hhFToken.balanceOf(alice.address);
+        let newBalance = await hhFToken.balanceOf(alice.address);
+        expect(newBalance).to.equal(amount.sub(amount));
 
-        await expect(balanceAfter).to.equal(balanceBefore.sub(amount));
-
+        newAssetBalance = await hhAssetToken.balanceOf(alice.address);
+        expect(newAssetBalance).to.equal(hhAssetTokenInitialBalance);
     });
+
 
     // NOTE: comment-out function modifier "onlyLendingPool" to run 
     it('should update the total supply', async function () {
@@ -252,15 +262,15 @@ describe('FToken', function() {
 
         await initReserve();
 
-        await hhFToken.mint(alice.address, amount, liquidityIndex);
+        await deposit(alice, hhNFT.address, hhAssetToken, amount, alice.address, '123');
 
         let totalSupplyBefore = await hhFToken.totalSupply();
 
         await hhFToken.connect(alice).approve(alice.address, amount);
-        await hhFToken.connect(alice).burnFrom(alice.address, amount, liquidityIndex);
+        await hhFToken.connect(alice).burn(alice.address, alice.address, amount, liquidityIndex);
         
         let totalSupplyAfter = await hhFToken.totalSupply()
-        await expect(totalSupplyAfter).to.equal(totalSupplyBefore.sub(amount));
+        expect(totalSupplyAfter).to.equal(totalSupplyBefore.sub(amount));
     });
 
     // NOTE: will fail due to the reserve not being innitialized. 
@@ -272,7 +282,8 @@ describe('FToken', function() {
 
         await initReserve();
 
-        await hhFToken.connect(lendingPool).mint(alice.address, amount, liquidityIndex);
+        await deposit(alice, hhNFT.address, hhAssetToken, amount, alice.address, '123');
+
         await hhFToken.connect(alice).approve(bob.address, amount);
         await expect(hhFToken.connect(lendingPool).transferBalance(alice.address, bob.address, amount))
         .to.emit(hhFToken, 'BalanceTransfer')
