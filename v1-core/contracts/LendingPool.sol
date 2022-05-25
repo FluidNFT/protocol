@@ -21,6 +21,8 @@ import { LendingPoolEvents } from './LendingPoolEvents.sol';
 import { TokenPriceConsumer } from './TokenPriceConsumer.sol';
 import { DataTypes } from "./libraries/DataTypes.sol";
 import { ReserveLogic } from "./libraries/ReserveLogic.sol";
+import { SupplyLogic } from "./libraries/SupplyLogic.sol";
+import { BorrowLogic } from "./libraries/BorrowLogic.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import { SafeMath } from '@openzeppelin/contracts/utils/math/SafeMath.sol';
 import "./WadRayMath.sol";
@@ -171,49 +173,87 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
     function deposit(
         address collateral,
         address asset, 
-        uint256 amount
+        uint256 amount,
+        address onBehalfOf,
+        uint16 referralCode
     ) 
         external 
         nonReentrant
         whenNotPaused 
         whenReserveActive(collateral, asset)
     {
-        DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
-        (bool success, bytes memory data) = _lendingPoolDepositAddress.delegatecall(
-            abi.encodeWithSignature("deposit(address,address,uint256)", collateral,asset,amount)
+        SupplyLogic.executeDeposit(
+            _reserves,
+            DataTypes.ExecuteDepositParams({
+                initiator: _msgSender(),
+                collateral: collateral,
+                asset: asset,
+                amount: amount, 
+                onBehalfOf: onBehalfOf,
+                referralCode: referralCode
+            })
         );
-        // require(success, string(data));
-
-        reserve.updateState();
-
-        emit Deposit(collateral, asset, amount, _msgSender(), reserve.liquidityIndex);
     }
+
+
+
+    //     DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
+    //     // (bool success, bytes memory data) = _lendingPoolDepositAddress.delegatecall(
+    //     //     abi.encodeWithSignature("deposit(address,address,uint256)", collateral,asset,amount)
+    //     // );
+    //     // require(success, string(data));
+    //     console.log('collateral1', collateral);
+    //     console.log('asset1', asset);
+    //     console.log('fToken1', reserve.fTokenAddress);
+    //     bool success = ILendingPoolDeposit(_lendingPoolDepositAddress).deposit(collateral, asset, amount, _msgSender(), onBehalfOf);
+    //     require(success, "DEPOSIT_FAILED");
+        
+    //     reserve.updateState();
+        
+
+    //     emit Deposit(collateral, asset, amount, onBehalfOf, reserve.liquidityIndex);
+    // }
 
     /// @notice Withdraw assets from the lending pool.
     /// @param collateral The NFT collateral contract address.
     /// @param asset The ERC20 address of the asset.
     /// @param amount The amount of ERC20 tokens.
+    /// @param to The address that will receive the underlying, same as msg.sender if the user wants to receive to their wallet or different if the benefitiary is a different wallet
     /// @dev Calls `LendingPoolWithdraw` function if modifiers are succeeded. 
     function withdraw(
         address collateral,
         address asset, 
-        uint256 amount
+        uint256 amount,
+        address to
     ) 
         external 
         nonReentrant
         whenNotPaused 
         whenReserveNotPaused(collateral, asset)
     {
-        DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
-        (bool success, bytes memory data) = _lendingPoolWithdrawAddress.delegatecall(
-            abi.encodeWithSignature("withdraw(address,address,uint256)", collateral,asset,amount)
+        SupplyLogic.executeWithdraw(
+            _reserves,
+            DataTypes.ExecuteWithdrawParams({
+                initiator: _msgSender(),
+                collateral: collateral,
+                asset: asset,
+                amount: amount,
+                to: to
+            })
         );
-        require(success, string(data));
-
-        reserve.updateState();
-
-        emit Withdraw(collateral, asset, amount, _msgSender(), reserve.liquidityIndex);
     }
+
+
+    //     DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
+    //     (bool success, bytes memory data) = _lendingPoolWithdrawAddress.delegatecall(
+    //         abi.encodeWithSignature("withdraw(address,address,uint256)", collateral,asset,amount)
+    //     );
+    //     require(success, string(data));
+
+    //     reserve.updateState();
+
+    //     emit Withdraw(collateral, asset, amount, _msgSender(), reserve.liquidityIndex);
+    // }
 
     /// @notice External function to bid on a defaulted borrow.
     /// @param asset The ERC20 token to be borrowed.
@@ -245,30 +285,50 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
     /// @param amount The amount of ERC20 tokens to be borrowed.
     /// @param collateral The ERC721 token to be used as collateral.
     /// @param tokenId The tokenId of the ERC721 token to be deposited. 
+    /// @param onBehalfOf The address to receive the loan.
+    /// @param referralCode Code used to register the integrator originated the operation, for potential rewards.
     /// @dev Calls `LendingPoolBorrow` function if modifiers are succeeded. 
     function borrow(
         address asset, 
         uint256 amount, 
         address collateral, 
-        uint256 tokenId
+        uint256 tokenId,
+        address onBehalfOf,
+        uint16 referralCode
     ) 
         external 
         nonReentrant
         whenNotPaused
         whenReserveActive(collateral, asset)
     {
-        DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
-        (bool success, bytes memory data) = _lendingPoolBorrowAddress.delegatecall(
-            abi.encodeWithSignature("borrow(address,uint256,address,uint256)", asset,amount,collateral,tokenId)
+        BorrowLogic.executeBorrow(
+            _reserves,
+            // _nfts,
+            DataTypes.ExecuteBorrowParams({
+                initiator: _msgSender(),
+                asset: asset,
+                amount: amount,
+                collateral: collateral,
+                tokenId: tokenId,
+                onBehalfOf: onBehalfOf,
+                referralCode: referralCode
+            })
         );
-        require(success, string(data));
+    }
+
+
+        // DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
+        // (bool success, bytes memory data) = _lendingPoolBorrowAddress.delegatecall(
+        //     abi.encodeWithSignature("borrow(address,uint256,address,uint256)", asset,amount,collateral,tokenId)
+        // );
+        // require(success, string(data));
         
-        success = abi.decode(data, (bool));
-        // require(success, "B1");
+        // success = abi.decode(data, (bool));
+        // // require(success, "B1");
 
-        reserve.updateState();
+        // reserve.updateState();
 
-        emit Borrow(asset, amount, collateral, tokenId, _msgSender(), reserve.liquidityIndex);
+        // emit Borrow(asset, amount, collateral, tokenId, _msgSender(), reserve.liquidityIndex);
     }
 
     /// @notice To liquidate a borrow position.
