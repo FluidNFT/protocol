@@ -329,7 +329,7 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         // reserve.updateState();
 
         // emit Borrow(asset, amount, collateral, tokenId, _msgSender(), reserve.liquidityIndex);
-    }
+    // }
 
     /// @notice To liquidate a borrow position.
     /// @param collateral The ERC721 token used as collateral.
