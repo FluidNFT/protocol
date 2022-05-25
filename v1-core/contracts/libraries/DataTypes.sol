@@ -79,5 +79,8 @@ library DataTypes {
         uint256 tokenId;
         address onBehalfOf;
         uint16 referralCode;
+        address tokenPriceConsumerAddress;
+        address nftPriceConsumerAddress;
+        address collateralManagerAddress;
     }
 }

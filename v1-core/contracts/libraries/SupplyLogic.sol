@@ -26,7 +26,7 @@ library SupplyLogic {
     /// @param collateral The Lending Pool underlying reserve collateral.
     /// @param asset The ERC20, reserve asset address.
     /// @param amount The amount of ERC20 tokens.
-    /// @param onBehalfOf The address that will receive the aTokens, same as msg.sender if the user wants to receive them on their own wallet, different if the benefitiary is a different wallet.
+    /// @param onBehalfOf The address that will receive the fTokens, same as msg.sender if the user wants to receive them on their own wallet, different if the benefitiary is a different wallet.
     /// @param referalCode Code used to register the integrator originating the operation, for potential rewards. 0 if the action is executed directly by the user, without any middle-man
     event Deposit(
         address initiator,

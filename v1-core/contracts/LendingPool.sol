@@ -301,19 +301,23 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         whenNotPaused
         whenReserveActive(collateral, asset)
     {
-        // BorrowLogic.executeBorrow(
-        //     _reserves,
-        //     // _nfts,
-        //     DataTypes.ExecuteBorrowParams({
-        //         initiator: _msgSender(),
-        //         asset: asset,
-        //         amount: amount,
-        //         collateral: collateral,
-        //         tokenId: tokenId,
-        //         onBehalfOf: onBehalfOf,
-        //         referralCode: referralCode
-        //     })
-        // );
+        BorrowLogic.executeBorrow(
+            _assetNames,
+            _reserves,
+            // _nfts,
+            DataTypes.ExecuteBorrowParams({
+                initiator: _msgSender(),
+                asset: asset,
+                amount: amount,
+                collateral: collateral,
+                tokenId: tokenId,
+                onBehalfOf: onBehalfOf,
+                referralCode: referralCode,
+                tokenPriceConsumerAddress: _tokenPriceConsumerAddress,
+                nftPriceConsumerAddress: _nftPriceConsumerAddress,
+                collateralManagerAddress: _collateralManagerAddress
+            })
+        );
     }
 
 
