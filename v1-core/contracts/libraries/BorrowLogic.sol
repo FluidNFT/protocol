@@ -10,6 +10,7 @@ import { ITokenPriceConsumer } from "../interfaces/ITokenPriceConsumer.sol";
 import { INFTPriceConsumer } from "../interfaces/INFTPriceConsumer.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ReserveLogic } from "./ReserveLogic.sol";
+import { InterestLogic } from "./InterestLogic.sol";
 import { SafeMath } from '@openzeppelin/contracts/utils/math/SafeMath.sol';
 import "../WadRayMath.sol";
 
@@ -146,5 +147,77 @@ library BorrowLogic {
         IDebtToken(reserve.debtTokenAddress).mint(params.onBehalfOf, params.amount, vars.interestRate);
 
         IFToken(reserve.fTokenAddress).reserveTransfer(params.onBehalfOf, params.amount);
+    }
+
+    struct RepayVars {
+        bool success;
+        bool partialRepayment;
+        uint256 borrowAmount;
+        uint256 repaymentAmount;
+        uint256 accruedBorrowAmount;
+        uint256 interestRate;
+        uint256 floorPrice;
+        DataTypes.Borrow borrowItem;
+    }
+
+    function executeRepay(
+        mapping(address => string) storage assetNames,
+        mapping(bytes32 => DataTypes.Reserve) storage reserves,
+        DataTypes.ExecuteRepayParams memory params
+    )
+        external
+    {
+        _repay(assetNames, reserves, params);
+    }
+
+    function _repay(
+        mapping(address => string) storage assetNames,
+        mapping(bytes32 => DataTypes.Reserve) storage reserves,
+        DataTypes.ExecuteRepayParams memory params
+    )
+        internal
+        returns (bool, uint256)
+    {
+        RepayVars memory vars;
+        vars.borrowItem = ICollateralManager(params.collateralManagerAddress).getBorrow(params.borrowId);
+        DataTypes.Reserve storage reserve = reserves[keccak256(abi.encode(params.collateral, params.asset))]; 
+
+        vars.accruedBorrowAmount = vars.borrowItem.borrowAmount.rayMul(
+            InterestLogic.calculateLinearInterest(vars.borrowItem.interestRate, vars.borrowItem.timestamp)
+        );
+        vars.partialRepayment = params.amount < vars.accruedBorrowAmount;
+        vars.repaymentAmount = vars.partialRepayment ? params.amount : vars.accruedBorrowAmount;
+
+        IFToken(reserve.fTokenAddress).reserveTransferFrom(vars.borrowItem.borrower, vars.repaymentAmount);  
+
+        if (vars.partialRepayment) {
+            vars.floorPrice = INFTPriceConsumer(params.nftPriceConsumerAddress).getFloorPrice(vars.borrowItem.collateral.erc721Token);
+            if (keccak256(abi.encodePacked(assetNames[params.asset])) != keccak256(abi.encodePacked("WETH"))) {
+                vars.floorPrice = vars.floorPrice.mul(ITokenPriceConsumer(params.tokenPriceConsumerAddress).getEthPrice(params.asset));
+            }
+            (vars.success, vars.borrowAmount, vars.interestRate) = ICollateralManager(params.collateralManagerAddress).updateBorrow(
+                params.borrowId,
+                params.asset,
+                vars.repaymentAmount, 
+                vars.floorPrice,
+                DataTypes.BorrowStatus.Active,
+                true, // isRepayment
+                vars.borrowItem.borrower
+            );
+            require(vars.success, "UNSUCCESSFUL_PARTIAL_REPAY");           
+        } else {
+            (vars.success, vars.borrowAmount, vars.interestRate) = ICollateralManager(params.collateralManagerAddress).withdraw(
+                params.borrowId, 
+                params.asset, 
+                vars.repaymentAmount //repaymentAmount
+            );
+            require(vars.success, "UNSUCCESSFUL_WITHDRAW");   
+        }
+
+        vars.success = IDebtToken(reserve.debtTokenAddress).burnFrom(vars.borrowItem.borrower, vars.repaymentAmount); 
+        require(vars.success, "UNSUCCESSFUL_BURN");
+
+        return (vars.success, vars.repaymentAmount);
+
     }
 }

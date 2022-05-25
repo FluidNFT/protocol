@@ -197,13 +197,11 @@ contract FToken is Context, ERC20Pausable, IFToken, AccessControl, ReentrancyGua
 
     /// @notice Transfers Asset tokens to the reserve.
     /// @param from The sender account.
-    /// @param asset The Asset token.
     /// @param amount The amount of Asset tokens.
     /// @dev Asset tokens deposited to the FToken reserve.
     /// @return Boolean for execution success.
     function reserveTransferFrom(
         address from, 
-        address asset, 
         uint256 amount
     ) 
         external 
@@ -215,8 +213,8 @@ contract FToken is Context, ERC20Pausable, IFToken, AccessControl, ReentrancyGua
         returns (bool)
     {
         bool success;
-        require(IERC20(asset).balanceOf(from) >= amount, "Insufficient user asset token balance.");
-        success = IERC20(asset).transferFrom(from, address(this), amount);
+        require(IERC20(_underlyingAsset).balanceOf(from) >= amount, "Insufficient user asset token balance.");
+        success = IERC20(_underlyingAsset).transferFrom(from, address(this), amount);
         require(success, "UNSUCCESSFUL_TRANSFER");
         emit ReserveTransfer(from, address(this), amount);
         return success;

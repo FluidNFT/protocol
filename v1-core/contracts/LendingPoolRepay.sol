@@ -79,61 +79,61 @@ contract LendingPoolRepay is Context, LendingPoolStorage, ILendingPoolRepay, Pau
         // onlyLendingPool
         returns (bool, uint256) 
     {
-        RepayVars memory vars;
-        vars.borrowItem = ICollateralManager(_collateralManagerAddress).getBorrow(borrowId);
-        DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))]; 
+        // RepayVars memory vars;
+        // vars.borrowItem = ICollateralManager(_collateralManagerAddress).getBorrow(borrowId);
+        // DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))]; 
 
-        vars.accruedBorrowAmount = vars.borrowItem.borrowAmount.rayMul(
-            InterestLogic.calculateLinearInterest(vars.borrowItem.interestRate, vars.borrowItem.timestamp)
-        );
-        vars.partialRepayment = repaymentAmount < vars.accruedBorrowAmount;
-        vars.repaymentAmount = vars.partialRepayment ? repaymentAmount : vars.accruedBorrowAmount;
+        // vars.accruedBorrowAmount = vars.borrowItem.borrowAmount.rayMul(
+        //     InterestLogic.calculateLinearInterest(vars.borrowItem.interestRate, vars.borrowItem.timestamp)
+        // );
+        // vars.partialRepayment = repaymentAmount < vars.accruedBorrowAmount;
+        // vars.repaymentAmount = vars.partialRepayment ? repaymentAmount : vars.accruedBorrowAmount;
 
-        vars.success = IFToken(reserve.fTokenAddress).reserveTransferFrom(_msgSender(), asset, vars.repaymentAmount);  
-        require(vars.success, "UNSUCCESSFUL_TRANSFER");
+        // vars.success = IFToken(reserve.fTokenAddress).reserveTransferFrom(_msgSender(), asset, vars.repaymentAmount);  
+        // require(vars.success, "UNSUCCESSFUL_TRANSFER");
 
-        if (vars.partialRepayment) {
-            vars.floorPrice = INFTPriceConsumer(_nftPriceConsumerAddress).getFloorPrice(vars.borrowItem.collateral.erc721Token);
-            if (keccak256(abi.encodePacked(_assetNames[asset])) != keccak256(abi.encodePacked("WETH"))) {
-                vars.floorPrice = vars.floorPrice.mul(ITokenPriceConsumer(_tokenPriceConsumerAddress).getEthPrice(asset));
-            }
-            (vars.success, vars.borrowAmount, vars.interestRate) = ICollateralManager(_collateralManagerAddress).updateBorrow(
-                borrowId,
-                asset,
-                vars.repaymentAmount, 
-                vars.floorPrice,
-                DataTypes.BorrowStatus.Active,
-                true, // isRepayment
-                _msgSender()
-            );
-            require(vars.success, "UNSUCCESSFUL_PARTIAL_REPAY");           
-        } else {
-            (vars.success, vars.borrowAmount, vars.interestRate) = ICollateralManager(_collateralManagerAddress).withdraw(
-                borrowId, 
-                asset, 
-                vars.repaymentAmount //repaymentAmount
-            );
-            require(vars.success, "UNSUCCESSFUL_WITHDRAW");   
-        }
+        // if (vars.partialRepayment) {
+        //     vars.floorPrice = INFTPriceConsumer(_nftPriceConsumerAddress).getFloorPrice(vars.borrowItem.collateral.erc721Token);
+        //     if (keccak256(abi.encodePacked(_assetNames[asset])) != keccak256(abi.encodePacked("WETH"))) {
+        //         vars.floorPrice = vars.floorPrice.mul(ITokenPriceConsumer(_tokenPriceConsumerAddress).getEthPrice(asset));
+        //     }
+        //     (vars.success, vars.borrowAmount, vars.interestRate) = ICollateralManager(_collateralManagerAddress).updateBorrow(
+        //         borrowId,
+        //         asset,
+        //         vars.repaymentAmount, 
+        //         vars.floorPrice,
+        //         DataTypes.BorrowStatus.Active,
+        //         true, // isRepayment
+        //         _msgSender()
+        //     );
+        //     require(vars.success, "UNSUCCESSFUL_PARTIAL_REPAY");           
+        // } else {
+        //     (vars.success, vars.borrowAmount, vars.interestRate) = ICollateralManager(_collateralManagerAddress).withdraw(
+        //         borrowId, 
+        //         asset, 
+        //         vars.repaymentAmount //repaymentAmount
+        //     );
+        //     require(vars.success, "UNSUCCESSFUL_WITHDRAW");   
+        // }
 
-        vars.success = IDebtToken(reserve.debtTokenAddress).burnFrom(_msgSender(), vars.repaymentAmount); 
-        require(vars.success, "UNSUCCESSFUL_BURN");
+        // vars.success = IDebtToken(reserve.debtTokenAddress).burnFrom(_msgSender(), vars.repaymentAmount); 
+        // require(vars.success, "UNSUCCESSFUL_BURN");
 
-        // Update reserve borrow numbers - for use in APR calculation
-        if (reserve.borrowAmount.sub(vars.borrowAmount) > 0) {
-            reserve.borrowRate = WadRayMath.rayDiv(
-                WadRayMath.rayMul(
-                    WadRayMath.wadToRay(reserve.borrowAmount), reserve.borrowRate
-                ).sub(
-                    WadRayMath.rayMul(
-                        WadRayMath.wadToRay(vars.borrowAmount), vars.interestRate 
-                    )    
-                ), (WadRayMath.wadToRay(reserve.borrowAmount).sub(WadRayMath.wadToRay(vars.borrowAmount)))
-            );
-        } else {
-            reserve.borrowRate  = 0;
-        }
+        // // Update reserve borrow numbers - for use in APR calculation
+        // if (reserve.borrowAmount.sub(vars.borrowAmount) > 0) {
+        //     reserve.borrowRate = WadRayMath.rayDiv(
+        //         WadRayMath.rayMul(
+        //             WadRayMath.wadToRay(reserve.borrowAmount), reserve.borrowRate
+        //         ).sub(
+        //             WadRayMath.rayMul(
+        //                 WadRayMath.wadToRay(vars.borrowAmount), vars.interestRate 
+        //             )    
+        //         ), (WadRayMath.wadToRay(reserve.borrowAmount).sub(WadRayMath.wadToRay(vars.borrowAmount)))
+        //     );
+        // } else {
+        //     reserve.borrowRate  = 0;
+        // }
 
-        return (vars.success, vars.repaymentAmount);
+        // return (vars.success, vars.repaymentAmount);
     }
 }

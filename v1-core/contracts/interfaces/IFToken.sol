@@ -17,7 +17,7 @@ interface IFToken is IERC20 {
 
     function reserveTransfer(address to, uint256 amount) external returns (uint256);
 
-    function reserveTransferFrom(address asset, address from, uint256 amount) external returns (bool);
+    function reserveTransferFrom(address from, uint256 amount) external returns (bool);
 
     // function transferBalance(address from, address to, uint256 amount) external returns (bool);
 

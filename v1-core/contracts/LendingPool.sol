@@ -393,13 +393,13 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
     /// @notice To repay a borrow position.
     /// @param collateral The NFT collateral contract address.
     /// @param asset The ERC20 token to be borrowed.
-    /// @param repaymentAmount The amount of ERC20 tokens to be repaid.
+    /// @param amount The amount of ERC20 tokens to be repaid.
     /// @param borrowId The unique identifier of the borrow.
     /// @dev Calls `LendingPoolRepay` function if modifiers are succeeded.  
     function repay(
         address collateral,
         address asset,
-        uint256 repaymentAmount,
+        uint256 amount,
         uint256 borrowId
     ) 
         external 
@@ -407,6 +407,22 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         whenNotPaused
         whenReserveNotPaused(collateral, asset)
     {
+        BorrowLogic.executeRepay(
+            _assetNames,
+            _reserves,
+            // _nfts,
+            DataTypes.ExecuteRepayParams({
+                initiator: _msgSender(),
+                collateral: collateral,
+                asset: asset,
+                amount: amount,
+                borrowId: borrowId,
+                tokenPriceConsumerAddress: _tokenPriceConsumerAddress,
+                nftPriceConsumerAddress: _nftPriceConsumerAddress,
+                collateralManagerAddress: _collateralManagerAddress
+            })
+        );
+
         // DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
         // (bool success, bytes memory data ) = _lendingPoolRepayAddress.delegatecall(
         //     abi.encodeWithSignature("repay(address,address,uint256,uint256)", collateral,asset,repaymentAmount,borrowId)
