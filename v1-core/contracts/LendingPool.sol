@@ -270,15 +270,29 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         nonReentrant
         whenNotPaused
     {
-        (bool success, bytes memory data) = _lendingPoolBidAddress.delegatecall(
-            abi.encodeWithSignature("bid(address,uint256,uint256)", asset,amount,borrowId)
+        LiquidateLogic.executeBid(
+            _assetNames,
+            _reserves,
+            DataTypes.ExecuteBidParams({
+                initiator: _msgSender(),
+                asset: asset,
+                amount: amount,
+                borrowId: borrowId,
+                tokenPriceConsumerAddress: _tokenPriceConsumerAddress,
+                nftPriceConsumerAddress: _nftPriceConsumerAddress,
+                collateralManagerAddress: _collateralManagerAddress,
+                liquidationFee: _liquidationFee
+            })
         );
-        require(success, string(data));
+        // (bool success, bytes memory data) = _lendingPoolBidAddress.delegatecall(
+        //     abi.encodeWithSignature("bid(address,uint256,uint256)", asset,amount,borrowId)
+        // );
+        // require(success, string(data));
         
-        success = abi.decode(data, (bool));
-        require(success, "BID_UNSUCCESSFUL");
+        // success = abi.decode(data, (bool));
+        // require(success, "BID_UNSUCCESSFUL");
 
-        emit Bid(asset, amount, borrowId, _msgSender());
+        // emit Bid(asset, amount, borrowId, _msgSender());
     }
 
     /// @notice External function to create a borrow position.

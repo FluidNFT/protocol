@@ -79,6 +79,85 @@ library LiquidateLogic {
             borrowItem.auction.bidder
         );
         require(vars.success, "UNSUCCESSFUL_RETRIEVE");
+    }
 
+    struct BidVars {
+        bool success;
+        uint256 floorPrice;
+        uint256 liquidationFee;
+        uint256 borrowBalanceAmount;
+    }
+
+    function executeBid(
+        mapping(address => string) storage assetNames,
+        mapping(bytes32 => DataTypes.Reserve) storage reserves,
+        DataTypes.ExecuteBidParams memory params
+    ) 
+        external
+    {
+        _bid(assetNames, reserves, params);
+    }
+
+    function _bid(
+        mapping(address => string) storage assetNames,
+        mapping(bytes32 => DataTypes.Reserve) storage reserves,
+        DataTypes.ExecuteBidParams memory params
+    )
+        internal
+    {
+        BidVars memory vars;
+        DataTypes.Borrow memory borrowItem = ICollateralManager(
+            params.collateralManagerAddress
+        ).getBorrow(params.borrowId);
+        DataTypes.Reserve storage reserve = reserves[keccak256(abi.encode(borrowItem.collateral.erc721Token, borrowItem.erc20Token))];  
+    
+        require(params.asset == borrowItem.erc20Token, "INCORRECT_ASSET");
+        require(reserve.status == DataTypes.ReserveStatus.Active, "Reserve is not active."); 
+
+        vars.floorPrice = INFTPriceConsumer(params.nftPriceConsumerAddress).getFloorPrice(borrowItem.collateral.erc721Token);
+        if (keccak256(abi.encodePacked(assetNames[params.asset])) != keccak256(abi.encodePacked("WETH"))) {
+            vars.floorPrice = vars.floorPrice.mul(ITokenPriceConsumer(params.tokenPriceConsumerAddress).getEthPrice(params.asset));
+        }
+        require(vars.floorPrice <= borrowItem.liquidationPrice, "BORROW_NOT_IN_DEFAULT");
+
+        vars.liquidationFee = borrowItem.borrowAmount.rayMul(params.liquidationFee);
+        vars.borrowBalanceAmount = borrowItem.borrowAmount // TODO: update to use Interest Rate logic
+            .add(
+                (borrowItem.borrowAmount)
+                .rayMul(borrowItem.interestRate)
+                .mul(block.timestamp.sub(borrowItem.timestamp))
+                .div(365 days)
+            );
+
+        if (borrowItem.status == DataTypes.BorrowStatus.Active) {
+            require(params.amount >= vars.borrowBalanceAmount, "INSUFFICIENT_BID");
+        } else if (borrowItem.status == DataTypes.BorrowStatus.ActiveAuction) {
+            require(uint40(block.timestamp) - borrowItem.auction.timestamp < 1 days, "AUCTION_ENDED"); // TODO: use configuratble global variable for auction time, currently 24 hours
+            require(params.amount > borrowItem.auction.bid, "INSUFFICIENT_BID");
+        } else {
+            revert("INACTIVE_BORROW");
+        }
+        
+        IERC20(params.asset).transferFrom(params.initiator, reserve.fTokenAddress, params.amount);
+
+        if (vars.success && borrowItem.status == DataTypes.BorrowStatus.ActiveAuction) {
+            IFToken(reserve.fTokenAddress).reserveTransfer(borrowItem.auction.bidder, borrowItem.auction.bid);
+        }
+
+        if (borrowItem.status == DataTypes.BorrowStatus.Active) {
+            ICollateralManager(params.collateralManagerAddress).setBorrowAuctionCall(
+                params.borrowId, 
+                params.amount, 
+                vars.liquidationFee,
+                uint40(block.timestamp),
+                params.initiator
+            );
+        } else {
+            ICollateralManager(params.collateralManagerAddress).setBorrowAuctionBid(
+                params.borrowId, 
+                params.amount, 
+                params.initiator
+            );
+        }
     }
 }

@@ -106,4 +106,15 @@ library DataTypes {
         address treasuryAddress;
         uint40 auctionDuration;
     }
+
+    struct ExecuteBidParams {
+        address initiator;
+        address asset;
+        uint256 amount;
+        uint256 borrowId;
+        address tokenPriceConsumerAddress;
+        address nftPriceConsumerAddress;
+        address collateralManagerAddress;
+        uint256 liquidationFee;
+    }
 }
