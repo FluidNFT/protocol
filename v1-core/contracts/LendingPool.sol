@@ -398,13 +398,13 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
     /// @notice To redeem a borrow position.
     /// @param collateral The NFT collateral contract address.
     /// @param asset The ERC20 token borrowed.
-    /// @param redeemAmount The amount of ERC20 tokens to be repaid.
+    /// @param amount The amount of ERC20 tokens to be repaid.
     /// @param borrowId The unique identifier of the borrow.
     /// @dev Calls `LendingPoolRedeem` function if modifiers are succeeded.  
     function redeem(
         address collateral,
         address asset,
-        uint256 redeemAmount,
+        uint256 amount,
         uint256 borrowId
     ) 
         external 
@@ -412,6 +412,20 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         whenNotPaused
         whenReserveNotPaused(collateral, asset)
     {
+        LiquidateLogic.executeRedeem(
+            _assetNames,
+            _reserves,
+            DataTypes.ExecuteRedeemParams({
+                initiator: _msgSender(),
+                collateral: collateral,
+                asset: asset,
+                amount: amount,
+                borrowId: borrowId,
+                tokenPriceConsumerAddress: _tokenPriceConsumerAddress,
+                nftPriceConsumerAddress: _nftPriceConsumerAddress,
+                collateralManagerAddress: _collateralManagerAddress
+            })
+        );
         // DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
         // (bool success, bytes memory data ) = _lendingPoolRedeemAddress.delegatecall(
         //     abi.encodeWithSignature("redeem(address,address,uint256,uint256)", collateral,asset,redeemAmount,borrowId)

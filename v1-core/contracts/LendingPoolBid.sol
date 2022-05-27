@@ -73,60 +73,60 @@ contract LendingPoolBid is Context, LendingPoolStorage, LendingPoolLogic, ILendi
         // onlyLendingPool
         returns (bool)
     {
-        DataTypes.Borrow memory borrowItem = ICollateralManager(
-            _collateralManagerAddress
-        ).getBorrow(borrowId);
-        DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(borrowItem.collateral.erc721Token, borrowItem.erc20Token))];  
-        BidVars memory vars;
+    //     DataTypes.Borrow memory borrowItem = ICollateralManager(
+    //         _collateralManagerAddress
+    //     ).getBorrow(borrowId);
+    //     DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(borrowItem.collateral.erc721Token, borrowItem.erc20Token))];  
+    //     BidVars memory vars;
 
-        require(asset == borrowItem.erc20Token, "INCORRECT_ASSET");
-        require(reserve.status == DataTypes.ReserveStatus.Active, "Reserve is not active."); 
+    //     require(asset == borrowItem.erc20Token, "INCORRECT_ASSET");
+    //     require(reserve.status == DataTypes.ReserveStatus.Active, "Reserve is not active."); 
 
-        vars.floorPrice = INFTPriceConsumer(_nftPriceConsumerAddress).getFloorPrice(borrowItem.collateral.erc721Token);
-        if (keccak256(abi.encodePacked(_assetNames[asset])) != keccak256(abi.encodePacked("WETH"))) {
-            vars.floorPrice = vars.floorPrice.mul(ITokenPriceConsumer(_tokenPriceConsumerAddress).getEthPrice(asset));
-        }
-        require(vars.floorPrice <= borrowItem.liquidationPrice, "BORROW_NOT_IN_DEFAULT");
+    //     vars.floorPrice = INFTPriceConsumer(_nftPriceConsumerAddress).getFloorPrice(borrowItem.collateral.erc721Token);
+    //     if (keccak256(abi.encodePacked(_assetNames[asset])) != keccak256(abi.encodePacked("WETH"))) {
+    //         vars.floorPrice = vars.floorPrice.mul(ITokenPriceConsumer(_tokenPriceConsumerAddress).getEthPrice(asset));
+    //     }
+    //     require(vars.floorPrice <= borrowItem.liquidationPrice, "BORROW_NOT_IN_DEFAULT");
 
-        vars.liquidationFee = borrowItem.borrowAmount.rayMul(_liquidationFee);
-        vars.borrowBalanceAmount = borrowItem.borrowAmount
-            .add(
-                (borrowItem.borrowAmount)
-                .rayMul(borrowItem.interestRate)
-                .mul(block.timestamp.sub(borrowItem.timestamp))
-                .div(365 days)
-            );
+    //     vars.liquidationFee = borrowItem.borrowAmount.rayMul(_liquidationFee);
+    //     vars.borrowBalanceAmount = borrowItem.borrowAmount
+    //         .add(
+    //             (borrowItem.borrowAmount)
+    //             .rayMul(borrowItem.interestRate)
+    //             .mul(block.timestamp.sub(borrowItem.timestamp))
+    //             .div(365 days)
+    //         );
 
-        if (borrowItem.status == DataTypes.BorrowStatus.Active) {
-            require(bidAmount >= vars.borrowBalanceAmount, "INSUFFICIENT_BID");
-        } else if (borrowItem.status == DataTypes.BorrowStatus.ActiveAuction) {
-            require(uint40(block.timestamp) - borrowItem.auction.timestamp < 1 days, "AUCTION_ENDED"); // TODO: use configuratble global variable for auction time, currently 24 hours
-            require(bidAmount > borrowItem.auction.bid, "INSUFFICIENT_BID");
-        } else {
-            revert("INACTIVE_BORROW");
-        }
+    //     if (borrowItem.status == DataTypes.BorrowStatus.Active) {
+    //         require(bidAmount >= vars.borrowBalanceAmount, "INSUFFICIENT_BID");
+    //     } else if (borrowItem.status == DataTypes.BorrowStatus.ActiveAuction) {
+    //         require(uint40(block.timestamp) - borrowItem.auction.timestamp < 1 days, "AUCTION_ENDED"); // TODO: use configuratble global variable for auction time, currently 24 hours
+    //         require(bidAmount > borrowItem.auction.bid, "INSUFFICIENT_BID");
+    //     } else {
+    //         revert("INACTIVE_BORROW");
+    //     }
         
-        IERC20(asset).transferFrom(_msgSender(), reserve.fTokenAddress, bidAmount);
+    //     IERC20(asset).transferFrom(_msgSender(), reserve.fTokenAddress, bidAmount);
 
-        if (vars.success && borrowItem.status == DataTypes.BorrowStatus.ActiveAuction) {
-            IFToken(reserve.fTokenAddress).reserveTransfer(borrowItem.auction.bidder, borrowItem.auction.bid);
-        }
+    //     if (vars.success && borrowItem.status == DataTypes.BorrowStatus.ActiveAuction) {
+    //         IFToken(reserve.fTokenAddress).reserveTransfer(borrowItem.auction.bidder, borrowItem.auction.bid);
+    //     }
 
-        if (borrowItem.status == DataTypes.BorrowStatus.Active) {
-            ICollateralManager( _collateralManagerAddress).setBorrowAuctionCall(
-                borrowId, 
-                bidAmount, 
-                vars.liquidationFee,
-                uint40(block.timestamp),
-                _msgSender()
-            );
-        } else {
-            ICollateralManager(_collateralManagerAddress).setBorrowAuctionBid(
-                borrowId, 
-                bidAmount, 
-                _msgSender()
-            );
-        }
+    //     if (borrowItem.status == DataTypes.BorrowStatus.Active) {
+    //         ICollateralManager( _collateralManagerAddress).setBorrowAuctionCall(
+    //             borrowId, 
+    //             bidAmount, 
+    //             vars.liquidationFee,
+    //             uint40(block.timestamp),
+    //             _msgSender()
+    //         );
+    //     } else {
+    //         ICollateralManager(_collateralManagerAddress).setBorrowAuctionBid(
+    //             borrowId, 
+    //             bidAmount, 
+    //             _msgSender()
+    //         );
+    //     }
 
         return true;
     }

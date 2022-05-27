@@ -117,4 +117,15 @@ library DataTypes {
         address collateralManagerAddress;
         uint256 liquidationFee;
     }
+
+    struct ExecuteRedeemParams {
+        address initiator;
+        address collateral;
+        address asset;
+        uint256 amount;
+        uint256 borrowId;
+        address tokenPriceConsumerAddress;
+        address nftPriceConsumerAddress;
+        address collateralManagerAddress;
+    }
 }

@@ -160,4 +160,97 @@ library LiquidateLogic {
             );
         }
     }
+
+    struct RedeemVars {
+        bool success;
+        uint256 borrowAmount;
+        uint256 borrowBalanceAmount;
+        uint256 interestRate;
+        uint256 floorPrice;
+        uint256 repaymentAmount;
+        uint256 overpaymentAmount;
+        uint256 liquidationThreshold;
+        DataTypes.Borrow borrowItem;
+    }
+
+    function executeRedeem(
+        mapping(address => string) storage assetNames,
+        mapping(bytes32 => DataTypes.Reserve) storage reserves,
+        DataTypes.ExecuteRedeemParams memory params
+    ) 
+        external
+    {
+        _redeem(assetNames, reserves, params);
+    }
+
+    function _redeem(
+        mapping(address => string) storage assetNames,
+        mapping(bytes32 => DataTypes.Reserve) storage reserves,
+        DataTypes.ExecuteRedeemParams memory params
+    )
+        internal
+    {
+        RedeemVars memory vars;
+        vars.borrowItem = ICollateralManager(
+            params.collateralManagerAddress
+        ).getBorrow(params.borrowId);
+        DataTypes.Reserve storage reserve = reserves[keccak256(abi.encode(vars.borrowItem.collateral.erc721Token, vars.borrowItem.erc20Token))];  
+        
+        require(vars.borrowItem.erc20Token == params.asset, "INCORRECT_ASSET");
+        require(vars.borrowItem.collateral.erc721Token == params.collateral, "INCORRECT_COLLATERAL");
+        require(vars.borrowItem.status == DataTypes.BorrowStatus.ActiveAuction, "INACTIVE_AUCTION");
+
+        vars.borrowBalanceAmount = vars.borrowItem.borrowAmount.rayMul(
+            InterestLogic.calculateLinearInterest(vars.borrowItem.interestRate, vars.borrowItem.timestamp)
+        );
+        require(params.amount > vars.borrowItem.auction.liquidationFee, "INSUFFICIENT_AMOUNT"); 
+        vars.repaymentAmount = params.amount - vars.borrowItem.auction.liquidationFee;
+        require(vars.repaymentAmount <= vars.borrowBalanceAmount , "OVERPAYMENT"); 
+
+        vars.floorPrice = INFTPriceConsumer(params.nftPriceConsumerAddress).getFloorPrice(vars.borrowItem.collateral.erc721Token);
+        if (keccak256(abi.encodePacked(assetNames[params.asset])) != keccak256(abi.encodePacked("WETH"))) {
+            vars.floorPrice = vars.floorPrice.mul(ITokenPriceConsumer(params.tokenPriceConsumerAddress).getEthPrice(params.asset));
+        }
+        vars.liquidationThreshold = vars.borrowItem.liquidationPrice.mul(100).div(vars.borrowItem.borrowAmount);
+        require(vars.borrowBalanceAmount - vars.repaymentAmount < vars.floorPrice.mul(100).div(vars.liquidationThreshold), "INSUFFICIENT_AMOUNT");
+        
+        vars.success = IERC20(params.asset).transferFrom(params.initiator, reserve.fTokenAddress, vars.repaymentAmount);
+        require(vars.success, "UNSUCCESSFUL_TRANSFER_TO_RESERVE");
+        
+        vars.success = IDebtToken(reserve.debtTokenAddress).burnFrom(vars.borrowItem.borrower, vars.repaymentAmount);
+        require(vars.success, "UNSUCCESSFUL_BURN");
+       
+        vars.success = IERC20(params.asset).transferFrom(params.initiator, vars.borrowItem.auction.caller, vars.borrowItem.auction.liquidationFee);
+        require(vars.success, "UNSUCCESSFUL_TRANSFER_TO_AUCTION_CALLER");
+
+        if (params.amount < vars.borrowBalanceAmount + vars.borrowItem.auction.liquidationFee) {
+            (vars.success, vars.borrowAmount, vars.interestRate) = ICollateralManager(params.collateralManagerAddress).updateBorrow(
+                params.borrowId, 
+                params.asset,
+                vars.repaymentAmount,
+                vars.floorPrice,
+                DataTypes.BorrowStatus.Active,
+                true, // isRepayment
+                vars.borrowItem.borrower
+            );
+            require(vars.success, "UNSUCCESSFUL_PARTIAL_REDEEM");
+        } else {
+            (vars.success,,) = ICollateralManager(params.collateralManagerAddress).withdraw(
+                params.borrowId, 
+                params.asset, 
+                vars.borrowBalanceAmount
+            );
+            require(vars.success, "UNSUCCESSFUL_WITHDRAW");
+            (vars.success, vars.borrowAmount, vars.interestRate) = ICollateralManager(params.collateralManagerAddress).updateBorrow(
+                params.borrowId, 
+                params.asset,
+                vars.repaymentAmount,
+                vars.floorPrice,
+                DataTypes.BorrowStatus.Repaid,
+                true, // isRepayment
+                vars.borrowItem.borrower
+            );
+            require(vars.success, "UNSUCCESSFUL_FULL_REDEEM");
+        } 
+    }
 }

@@ -378,7 +378,7 @@ contract CollateralManager is Context, IERC721Receiver, AccessControl, Pausable,
         uint256 _collateralFloorPrice,
         DataTypes.BorrowStatus _status,
         bool _isRepayment,
-        address _msgSender
+        address _initiator
     ) 
         public 
         onlyLendingPool
@@ -391,7 +391,7 @@ contract CollateralManager is Context, IERC721Receiver, AccessControl, Pausable,
             _collateralFloorPrice,
             _status,
             _isRepayment,
-            _msgSender
+            _initiator
         );
     }
 
@@ -645,25 +645,26 @@ contract CollateralManager is Context, IERC721Receiver, AccessControl, Pausable,
         uint256 _collateralFloorPrice,
         DataTypes.BorrowStatus _status,
         bool _isRepayment,
-        address _msgSender
+        address _initiator
     )
         private
         returns (bool, uint256, uint256)
     {
         UpdateVars memory vars;
-        require(_msgSender == borrows[_id].borrower, "NOT_BORROWER");
+        require(_initiator == borrows[_id].borrower, "NOT_BORROWER");
 
-        vars.accruedBorrowAmount = borrows[_id].borrowAmount.rayMul(
-            InterestLogic.calculateLinearInterest(borrows[_id].interestRate, borrows[_id].timestamp)
-        );
-
-        vars.updatedBorrowAmount = _isRepayment ? vars.accruedBorrowAmount - _updateAmount : vars.accruedBorrowAmount + _updateAmount;
-        
-        require(vars.updatedBorrowAmount < _collateralFloorPrice.mul(100).div(150) , "UNDERCOLLATERALIZED"); // TODO: updata 150 to dynamic amount
+        if (borrows[_id].borrowAmount == 0) {
+            vars.updatedBorrowAmount = 0;
+        } else {
+            vars.accruedBorrowAmount = borrows[_id].borrowAmount.rayMul(
+                InterestLogic.calculateLinearInterest(borrows[_id].interestRate, borrows[_id].timestamp)
+            );
+            vars.updatedBorrowAmount = _isRepayment ? vars.accruedBorrowAmount - _updateAmount : vars.accruedBorrowAmount + _updateAmount;
+            require(vars.updatedBorrowAmount < _collateralFloorPrice.mul(100).div(150) , "UNDERCOLLATERALIZED"); // TODO: updata 150 to dynamic amount
+        }
 
         vars.borrowAsset = borrows[_id].erc20Token;
         require(vars.borrowAsset == _asset, "Repayment asset doesn't match borrow");
-
 
         borrows[_id].status = _status;
         borrows[_id].borrowAmount = vars.updatedBorrowAmount;
