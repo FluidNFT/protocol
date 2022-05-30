@@ -8,13 +8,6 @@ import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import { IFToken } from "./interfaces/IFToken.sol";
 import { IDebtToken } from "./interfaces/IDebtToken.sol";
 import { ICollateralManager } from "./interfaces/ICollateralManager.sol";
-import { ILendingPoolBid } from "./interfaces/ILendingPoolBid.sol";
-import { ILendingPoolBorrow } from "./interfaces/ILendingPoolBorrow.sol";
-import { ILendingPoolDeposit } from "./interfaces/ILendingPoolDeposit.sol";
-import { ILendingPoolLiquidate } from "./interfaces/ILendingPoolLiquidate.sol";
-import { ILendingPoolRedeem } from "./interfaces/ILendingPoolRedeem.sol";
-import { ILendingPoolRepay } from "./interfaces/ILendingPoolRepay.sol";
-import { ILendingPoolWithdraw } from "./interfaces/ILendingPoolWithdraw.sol";
 import { DataTypes } from './libraries/DataTypes.sol';
 import { LendingPoolLogic } from './LendingPoolLogic.sol';
 import { LendingPoolEvents } from './LendingPoolEvents.sol';
@@ -119,30 +112,13 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         public
         onlyConfigurator
     {
-        if (contractName==BID) {
-            _lendingPoolBidAddress = contractAddress;
-        } else if (contractName==BORROW) {
-            _lendingPoolBorrowAddress = contractAddress;
-        } else if (contractName==DEPOSIT) {
-            _lendingPoolDepositAddress = contractAddress;
-        } else if (contractName==LIQUIDATE) {
-            _lendingPoolLiquidateAddress = contractAddress;    
-        } else if (contractName==REDEEM) {
-            _lendingPoolRedeemAddress = contractAddress;
-        } else if (contractName==REPAY) {
-            _lendingPoolRepayAddress = contractAddress;
-        } else if (contractName==WITHDRAW) {
-            _lendingPoolWithdrawAddress = contractAddress;
-        } else if (contractName==CM) { //Collateral Manager
-            // require(!_isCollateralManagerConnected, "CM1"); TODO revert comment
-            // _isCollateralManagerConnected = true;
+        if (contractName==CM) {
             _collateralManagerAddress = contractAddress;
         } else if (contractName==NFT_PRICE_ORACLE) { 
             _nftPriceConsumerAddress = contractAddress;
         } else if (contractName==TOKEN_PRICE_ORACLE) { 
             _tokenPriceConsumerAddress = contractAddress;
         } 
-
         emit LendingPoolConnected(contractName, contractAddress);
     }
 
@@ -196,25 +172,6 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         );
     }
 
-
-
-    //     DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
-    //     // (bool success, bytes memory data) = _lendingPoolDepositAddress.delegatecall(
-    //     //     abi.encodeWithSignature("deposit(address,address,uint256)", collateral,asset,amount)
-    //     // );
-    //     // require(success, string(data));
-    //     console.log('collateral1', collateral);
-    //     console.log('asset1', asset);
-    //     console.log('fToken1', reserve.fTokenAddress);
-    //     bool success = ILendingPoolDeposit(_lendingPoolDepositAddress).deposit(collateral, asset, amount, _msgSender(), onBehalfOf);
-    //     require(success, "DEPOSIT_FAILED");
-        
-    //     reserve.updateState();
-        
-
-    //     emit Deposit(collateral, asset, amount, onBehalfOf, reserve.liquidityIndex);
-    // }
-
     /// @notice Withdraw assets from the lending pool.
     /// @param collateral The NFT collateral contract address.
     /// @param asset The ERC20 address of the asset.
@@ -244,18 +201,6 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         );
     }
 
-
-    //     DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
-    //     (bool success, bytes memory data) = _lendingPoolWithdrawAddress.delegatecall(
-    //         abi.encodeWithSignature("withdraw(address,address,uint256)", collateral,asset,amount)
-    //     );
-    //     require(success, string(data));
-
-    //     reserve.updateState();
-
-    //     emit Withdraw(collateral, asset, amount, _msgSender(), reserve.liquidityIndex);
-    // }
-
     /// @notice External function to bid on a defaulted borrow.
     /// @param asset The ERC20 token to be borrowed.
     /// @param amount The amount of ERC20 tokens to be borrowed.
@@ -284,15 +229,6 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
                 liquidationFee: _liquidationFee
             })
         );
-        // (bool success, bytes memory data) = _lendingPoolBidAddress.delegatecall(
-        //     abi.encodeWithSignature("bid(address,uint256,uint256)", asset,amount,borrowId)
-        // );
-        // require(success, string(data));
-        
-        // success = abi.decode(data, (bool));
-        // require(success, "BID_UNSUCCESSFUL");
-
-        // emit Bid(asset, amount, borrowId, _msgSender());
     }
 
     /// @notice External function to create a borrow position.
@@ -335,21 +271,6 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         );
     }
 
-
-        // DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
-        // (bool success, bytes memory data) = _lendingPoolBorrowAddress.delegatecall(
-        //     abi.encodeWithSignature("borrow(address,uint256,address,uint256)", asset,amount,collateral,tokenId)
-        // );
-        // require(success, string(data));
-        
-        // success = abi.decode(data, (bool));
-        // // require(success, "B1");
-
-        // reserve.updateState();
-
-        // emit Borrow(asset, amount, collateral, tokenId, _msgSender(), reserve.liquidityIndex);
-    // }
-
     /// @notice To liquidate a borrow position.
     /// @param collateral The ERC721 token used as collateral.
     /// @param asset The ERC20 token borrowed.
@@ -382,17 +303,6 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
                 auctionDuration: _auctionDuration
             })
         );
-
-
-        // DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
-        // (bool success, bytes memory data) = _lendingPoolLiquidateAddress.delegatecall(
-        //     abi.encodeWithSignature("liquidate(address,address,uint256)", collateral,asset,borrowId)
-        // );
-        // require(success, string(data));
-
-        // reserve.updateState();
-
-        // emit Liquidate(borrowId, _msgSender());
     }
 
     /// @notice To redeem a borrow position.
@@ -426,15 +336,6 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
                 collateralManagerAddress: _collateralManagerAddress
             })
         );
-        // DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
-        // (bool success, bytes memory data ) = _lendingPoolRedeemAddress.delegatecall(
-        //     abi.encodeWithSignature("redeem(address,address,uint256,uint256)", collateral,asset,redeemAmount,borrowId)
-        // );
-        // require(success, string(data)); 
-
-        // reserve.updateState();
-
-        // emit Redeem(borrowId, asset, redeemAmount, _msgSender());
     }
 
     /// @notice To repay a borrow position.
@@ -469,17 +370,6 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
                 collateralManagerAddress: _collateralManagerAddress
             })
         );
-
-        // DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
-        // (bool success, bytes memory data ) = _lendingPoolRepayAddress.delegatecall(
-        //     abi.encodeWithSignature("repay(address,address,uint256,uint256)", collateral,asset,repaymentAmount,borrowId)
-        // );
-        // require(success, string(data)); 
-
-        // (success, repaymentAmount) = abi.decode(data, (bool, uint256));
-        // reserve.updateState();
-
-        // emit Repay(borrowId, asset, repaymentAmount, _msgSender());
     }
 
     /// @notice Pauses the contract `deposit`, `withdraw`, `borrow` and `repay` functions.

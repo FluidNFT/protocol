@@ -4,7 +4,6 @@ pragma solidity 0.8.9;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import { ILendingPool } from "./interfaces/ILendingPool.sol";
-import { ILendingPoolBid } from "./interfaces/ILendingPoolBid.sol";
 import { ICollateralManager } from "./interfaces/ICollateralManager.sol";
 import { IFToken } from "./interfaces/IFToken.sol";
 import { IDebtToken } from "./interfaces/IDebtToken.sol";
@@ -22,23 +21,9 @@ contract Configurator is Context, AccessControl {
     
     address public collateralManagerAddress;
     address public lendingPoolAddress;
-    address public lendingPoolBidAddress;
-    address public lendingPoolBorrowAddress;
-    address public lendingPoolDepositAddress;
-    address public lendingPoolLiquidateAddress;
-    address public lendingPoolRedeemAddress;
-    address public lendingPoolRepayAddress;
-    address public lendingPoolWithdrawAddress;
     address public nftPriceConsumerAddress;
     address public tokenPriceConsumerAddress;
 
-    bytes32 private constant BID = keccak256("BID");
-    bytes32 private constant BORROW = keccak256("BORROW");
-    bytes32 private constant DEPOSIT = keccak256("DEPOSIT");
-    bytes32 private constant LIQUIDATE = keccak256("LIQUIDATE");
-    bytes32 private constant REDEEM = keccak256("REDEEM");
-    bytes32 private constant REPAY = keccak256("REPAY");
-    bytes32 private constant WITHDRAW = keccak256("WITHDRAW");
     bytes32 private constant CM = keccak256("CM");
     bytes32 private constant NFT_PRICE_ORACLE = keccak256("NFT_PRICE_ORACLE");
     bytes32 private constant TOKEN_PRICE_ORACLE = keccak256("TOKEN_PRICE_ORACLE");
@@ -68,41 +53,6 @@ contract Configurator is Context, AccessControl {
         _;
     }
 
-    modifier whenLendingPoolBidConnected {
-        require(lendingPoolBidAddress != address(0), "LP2");
-        _;
-    }
-    
-    modifier whenLendingPoolBorrowConnected {
-        require(lendingPoolBorrowAddress != address(0), "LP3");
-        _;
-    }
-
-    modifier whenLendingPoolDepositConnected {
-        require(lendingPoolDepositAddress != address(0), "LP4");
-        _;
-    }
-
-    modifier whenLendingPoolLiquidateConnected {
-        require(lendingPoolLiquidateAddress != address(0), "LP5");
-        _;
-    }
-
-    modifier whenLendingPoolRedeemConnected {
-        require(lendingPoolRedeemAddress != address(0), "LP6");
-        _;
-    }
-
-    modifier whenLendingPoolRepayConnected {
-        require(lendingPoolRepayAddress != address(0), "LP7");
-        _;
-    }
-
-    modifier whenLendingPoolWithdrawConnected {
-        require(lendingPoolWithdrawAddress != address(0), "LP8");
-        _;
-    }
-
     modifier whenCollateralManagerConnected {
         require(collateralManagerAddress != address(0), "LP9");
         _;
@@ -113,55 +63,6 @@ contract Configurator is Context, AccessControl {
     /// @dev Sets the lendingPoolAddress variable.
     function connectLendingPool(address _lendingPoolAddress) public onlyAdmin {
         lendingPoolAddress = _lendingPoolAddress;
-    }
-
-    /// @notice Connects the LendingPoolBid contract by setting the address.
-    /// @param _lendingPoolBidAddress The lendingPoolBid contract address.
-    /// @dev Sets the lendingPoolBidAddress variable.
-    function connectLendingPoolBid(address _lendingPoolBidAddress) public onlyAdmin {
-        lendingPoolBidAddress = _lendingPoolBidAddress;
-    }
-
-    /// @notice Connects the LendingPoolBorrow contract by setting the address.
-    /// @param _lendingPoolBorrowAddress The LendingPoolBorrow contract address.
-    /// @dev Sets the lendingPoolBorrowAddress variable.
-    function connectLendingPoolBorrow(address _lendingPoolBorrowAddress) public onlyAdmin {
-        lendingPoolBorrowAddress = _lendingPoolBorrowAddress;
-    }
-
-    /// @notice Connects the LendingPoolDeposit contract by setting the address.
-    /// @param _lendingPoolDepositAddress The LendingPoolDeposit contract address.
-    /// @dev Sets the lendingPoolDepositAddress variable.
-    function connectLendingPoolDeposit(address _lendingPoolDepositAddress) public onlyAdmin {
-        lendingPoolDepositAddress = _lendingPoolDepositAddress;
-    }
-
-    /// @notice Connects the LendingPoolLiquidate contract by setting the address.
-    /// @param _lendingPoolLiquidateAddress The lendingPoolLiquidate contract address.
-    /// @dev Sets the lendingPoolLiquidateAddress variable.
-    function connectLendingPoolLiquidate(address _lendingPoolLiquidateAddress) public onlyAdmin {
-        lendingPoolLiquidateAddress = _lendingPoolLiquidateAddress;
-    }
-
-    /// @notice Connects the LendingPoolRedeem contract by setting the address.
-    /// @param _lendingPoolRedeemAddress The lendingPoolRedeem contract address.
-    /// @dev Sets the lendingPoolRedeemAddress variable.
-    function connectLendingPoolRedeem(address _lendingPoolRedeemAddress) public onlyAdmin {
-        lendingPoolRedeemAddress = _lendingPoolRedeemAddress;
-    }
-
-    /// @notice Connects the LendingPoolRepay contract by setting the address.
-    /// @param _lendingPoolRepayAddress The lendingPoolRepay contract address.
-    /// @dev Sets the lendingPoolRepayAddress variable.
-    function connectLendingPoolRepay(address _lendingPoolRepayAddress) public onlyAdmin {
-        lendingPoolRepayAddress = _lendingPoolRepayAddress;
-    }  
-
-    /// @notice Connects the LendingPoolWithdraw contract by setting the address.
-    /// @param _lendingPoolWithdrawAddress The lendingPoolWithdraw contract address.
-    /// @dev Sets the lendingPoolWithdrawAddress variable.
-    function connectLendingPoolWithdraw(address _lendingPoolWithdrawAddress) public onlyAdmin {
-        lendingPoolWithdrawAddress = _lendingPoolWithdrawAddress;
     }
 
     /// @notice Connects the NftPriceConsumer contract by setting the address.
@@ -301,49 +202,7 @@ contract Configurator is Context, AccessControl {
         whenLendingPoolConnected
     {
         bytes32 CONTRACT = keccak256(abi.encodePacked(contractName));
-        if (CONTRACT==BID) {
-            require(lendingPoolBidAddress != address(0), "CLP1");
-            ILendingPool(lendingPoolAddress).connectContract(
-                CONTRACT,
-                lendingPoolBidAddress
-            );
-        } else if (CONTRACT==BORROW) {
-            require(lendingPoolBorrowAddress != address(0), "CLP2");
-            ILendingPool(lendingPoolAddress).connectContract(
-                CONTRACT,
-                lendingPoolBorrowAddress
-            );
-        } else if (CONTRACT==DEPOSIT) {
-            require(lendingPoolDepositAddress != address(0), "CLP3");
-            ILendingPool(lendingPoolAddress).connectContract(
-                CONTRACT,
-                lendingPoolDepositAddress
-            );
-        } else if (CONTRACT==LIQUIDATE) {
-            require(lendingPoolLiquidateAddress != address(0), "CLP4");
-            ILendingPool(lendingPoolAddress).connectContract(
-                CONTRACT,
-                lendingPoolLiquidateAddress
-            );
-        } else if (CONTRACT==REDEEM) {
-            require(lendingPoolRedeemAddress != address(0), "CLP5");
-            ILendingPool(lendingPoolAddress).connectContract(
-                CONTRACT,
-                lendingPoolRedeemAddress
-            );
-        } else if (CONTRACT==REPAY) {
-            require(lendingPoolRepayAddress != address(0), "CLP6");
-            ILendingPool(lendingPoolAddress).connectContract(
-                CONTRACT,
-                lendingPoolRepayAddress
-            );
-        } else if (CONTRACT==WITHDRAW) {
-            require(lendingPoolWithdrawAddress != address(0), "CLP7");
-            ILendingPool(lendingPoolAddress).connectContract(
-                CONTRACT,
-                lendingPoolWithdrawAddress
-            );
-        } else if (CONTRACT==CM) {
+        if (CONTRACT==CM) {
             require(collateralManagerAddress != address(0), "CLP8");
             ILendingPool(lendingPoolAddress).connectContract(
                 CONTRACT,

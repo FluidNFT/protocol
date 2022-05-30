@@ -5,7 +5,7 @@
 // Runtime Environment's members available in the global scope.
 const hre = require("hardhat");
 const fs = require("fs");
-const envFile = "../interface/.env";
+const envFile = "./interface-env.env";
 const docsFile = "../docs/deployed_address.txt";
 let dataItem = "";
 let fileData = "";
@@ -50,8 +50,32 @@ async function main() {
   console.log("Configurator deployed to:", configurator.address);
   docsFileData += `LENDING_POOL_CONTRACT_ADDRESS=${configurator.address}\n`;
 
+  // Get and deploy SupplyLogic Library
+  SupplyLogicLib = await ethers.getContractFactory('SupplyLogic');
+  hhSupplyLogicLib = await SupplyLogicLib.deploy();
+  await hhSupplyLogicLib.deployed();
+  hhSupplyLogicLibAddress = await hhSupplyLogicLib.resolvedAddress;
+
+  // Get and deploy BorrowLogic Library
+  BorrowLogicLib = await ethers.getContractFactory('BorrowLogic');
+  hhBorrowLogicLib = await BorrowLogicLib.deploy();
+  await hhBorrowLogicLib.deployed();
+  hhBorrowLogicLibAddress = await hhBorrowLogicLib.resolvedAddress;
+
+  // Get and deploy LiquidateLogic Library
+  LiquidateLogicLib = await ethers.getContractFactory('LiquidateLogic');
+  hhLiquidateLogicLib = await LiquidateLogicLib.deploy();
+  await hhLiquidateLogicLib.deployed();
+  hhLiquidateLogicLibAddress = await hhLiquidateLogicLib.resolvedAddress;
+
   // Get and deploy LendingPool contract
-  const LendingPool = await hre.ethers.getContractFactory('LendingPool');
+  const LendingPool = await hre.ethers.getContractFactory('LendingPool', {
+    libraries: {
+        SupplyLogic: hhSupplyLogicLibAddress,
+        BorrowLogic: hhBorrowLogicLibAddress,
+        LiquidateLogic: hhLiquidateLogicLibAddress
+    }
+  });
   const lendingPool = await LendingPool.connect(admin).deploy(
     configurator.address,
     treasuryAccount.address
@@ -64,68 +88,6 @@ async function main() {
 
   // Connect Configurator to LendingPool by setting the address
   await configurator.connect(admin).connectLendingPool(lendingPool.address);
-
-  // Get, deploy and connect LendingPoolBorrow to LendingPool
-  LendingPoolBorrow = await ethers.getContractFactory("LendingPoolBorrow")
-  lendingPoolBorrow = await LendingPoolBorrow.deploy(
-    configurator.address,
-    lendingPool.address
-  );
-  await lendingPoolBorrow.deployed();
-  await configurator.connect(admin).connectLendingPoolBorrow(lendingPoolBorrow.address);
-  await configurator.connect(admin).connectLendingPoolContract("BORROW");
-
-  // Get, deploy and connect LendingPoolDeposit to LendingPool
-  LendingPoolDeposit = await ethers.getContractFactory('LendingPoolDeposit');
-  lendingPoolDeposit = await LendingPoolDeposit.deploy(
-      configurator.address,
-      lendingPool.address,
-  );
-  await lendingPoolDeposit.deployed();
-  await configurator.connect(admin).connectLendingPoolDeposit(lendingPoolDeposit.address);
-  await configurator.connect(admin).connectLendingPoolContract("DEPOSIT");
-
-  // Get, deploy and connect LendingPoolLiquidate to LendingPool
-  LendingPoolLiquidate = await ethers.getContractFactory('LendingPoolLiquidate');
-  lendingPoolLiquidate = await LendingPoolLiquidate.deploy(
-      configurator.address,
-      lendingPool.address,
-  );
-  await lendingPoolLiquidate.deployed();
-  await configurator.connect(admin).connectLendingPoolLiquidate(lendingPoolLiquidate.address);
-  await configurator.connect(admin).connectLendingPoolContract("LIQUIDATE");
-
-  // Get, deploy and connect LendingPoolBid to LendingPool
-  LendingPoolBid = await ethers.getContractFactory('LendingPoolBid');
-  lendingPoolBid = await LendingPoolBid.deploy(
-      configurator.address,
-      lendingPool.address,
-  );
-  await lendingPoolBid.deployed();
-  await configurator.connect(admin).connectLendingPoolBid(lendingPoolBid.address);
-  await configurator.connect(admin).connectLendingPoolContract("BID");
-
-
-  // Get, deploy and connect LendingPoolRepay to LendingPool
-  LendingPoolRepay = await ethers.getContractFactory('LendingPoolRepay');
-  lendingPoolRepay = await LendingPoolRepay.deploy(
-      configurator.address,
-      lendingPool.address,
-  );
-  await lendingPoolRepay.deployed();
-  await configurator.connect(admin).connectLendingPoolRepay(lendingPoolRepay.address);
-  await configurator.connect(admin).connectLendingPoolContract("REPAY");
-
-  // Get, deploy and connect LendingPoolWithdraw to LendingPool
-  LendingPoolWithdraw = await ethers.getContractFactory('LendingPoolWithdraw');
-  lendingPoolWithdraw = await LendingPoolWithdraw.deploy(
-      configurator.address,
-      lendingPool.address,
-  );
-  await lendingPoolWithdraw.deployed();
-  lendingPoolWithdrawAddress = await lendingPoolWithdraw.resolvedAddress;
-  await configurator.connect(admin).connectLendingPoolWithdraw(lendingPoolWithdraw.address);
-  await configurator.connect(admin).connectLendingPoolContract("WITHDRAW");
 
   // Get and deploy CollateralManager contract
   const CollateralManager = await hre.ethers.getContractFactory('CollateralManager');
@@ -330,9 +292,9 @@ async function main() {
   await mint("BAYC", 2, 10); 
   await mint("BAYC", 2, 11); 
   
-  for(let i=12; i< 100; i++) {
-    await mint("BAYC", 0, i); 
-  }
+  // for(let i=12; i< 100; i++) {
+  //   await mint("BAYC", 0, i); 
+  // }
 
   /* 
   
@@ -343,17 +305,17 @@ async function main() {
   let depositAmount; 
   depositAmount = hre.ethers.utils.parseEther("200.00");
   await assetTokenWETH.connect(acc1).approve(lendingPool.address, depositAmount);
-  await lendingPool.connect(acc1).deposit(nftBAYC.address, assetTokenWETH.address, depositAmount);
+  await lendingPool.connect(acc1).deposit(nftBAYC.address, assetTokenWETH.address, depositAmount, acc1.address, '1');
 
   // Deposits from Account 2
   depositAmount = hre.ethers.utils.parseEther("135");
   await assetTokenWETH.connect(acc2).approve(lendingPool.address, depositAmount);
-  await lendingPool.connect(acc2).deposit(nftBAYC.address, assetTokenWETH.address, depositAmount);
+  await lendingPool.connect(acc2).deposit(nftBAYC.address, assetTokenWETH.address, depositAmount, acc2.address, '12');
 
   // Deposit from admin
   depositAmount = hre.ethers.utils.parseEther("10000");
   await assetTokenWETH.connect(admin).approve(lendingPool.address, depositAmount);
-  await lendingPool.connect(admin).deposit(nftBAYC.address, assetTokenWETH.address, depositAmount);
+  await lendingPool.connect(admin).deposit(nftBAYC.address, assetTokenWETH.address, depositAmount, admin.address, '123');
 
 
   /*
@@ -368,7 +330,9 @@ async function main() {
       assetTokenWETH.address,
       borrowAmount,
       nftBAYC.address,
-      i
+      i,
+      accDict[0].address,
+      '91'
     )
   }
 
@@ -379,7 +343,9 @@ async function main() {
       assetTokenWETH.address,
       borrowAmount,
       nftBAYC.address,
-      i
+      i,
+      accDict[1].address,
+      '92'
     )
   }
 
@@ -390,7 +356,9 @@ async function main() {
       assetTokenWETH.address,
       borrowAmount,
       nftBAYC.address,
-      i
+      i,
+      accDict[2].address,
+      '93'
     )
   }
 
