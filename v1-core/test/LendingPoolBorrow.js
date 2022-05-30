@@ -36,6 +36,7 @@ beforeEach(async function() {
     hhAssetTokenInitialBalance = ethers.utils.parseUnits('1000000', 18);
     alice_tokenId = 0;
     bob_tokenId = 1;
+    bob_tokenId2 = 2;
 
     // Get Signers
     [admin, emergencyAdmin, alice, bob, treasury] = await ethers.getSigners();
@@ -179,6 +180,7 @@ beforeEach(async function() {
     // Mint NFTs to alice and bob
     await hhNFT.mint(alice.address, alice_tokenId);
     await hhNFT.mint(bob.address, bob_tokenId);
+    await hhNFT.mint(bob.address, bob_tokenId2);
 
     // Set/Mock NFT Price Oracle NFT price
     const mockFloorPrice = ethers.utils.parseUnits('100', 18);
@@ -227,6 +229,27 @@ async function borrow(signer, nftToken, tokenId, assetToken, tokenAmount, onBeha
         referralCode);
 }
 
+async function batchBorrow(signer, nftTokens, tokenIds, assetTokens, tokenAmounts, onBehalfOf, referralCode, isCreate=true) {
+    // Approve NFT transfer
+    let assetTokenAddresses = [];
+    let nftTokenAddresses = [];
+    if (isCreate) {
+        for (let i = 0; i < nftTokens.length; i++) {
+            await nftTokens[i].connect(signer).approve(hhCollateralManagerAddress, tokenIds[i]);
+            assetTokenAddresses.push(assetTokens[i].address);
+            nftTokenAddresses.push(nftTokens[i].address);
+        }    
+    }   
+
+    return hhLendingPool.connect(signer).batchBorrow(
+        assetTokenAddresses,
+        tokenAmounts,
+        nftTokenAddresses,
+        tokenIds,
+        onBehalfOf,
+        referralCode);
+}
+
 async function repay(signer, collateralAddress, assetToken, fToken, repaymentAmount, borrowId) {
     // Approve transfer of repaymentAmount asset tokens to fToken address (asset reserve)
     await assetToken.connect(signer).approve(fToken.address, repaymentAmount);
@@ -262,19 +285,19 @@ async function liquidate(signer, collateral, asset, borrowId) {
 describe('LendingPool >> Borrow', function() {
     
     it('should check NFT balances', async function () {
-        await expect(
+        expect(
             (await hhNFT.balanceOf(alice.address)))
             .to.equal(1);
-        await expect(
+        expect(
             (await hhNFT.balanceOf(bob.address)))
-            .to.equal(1);
+            .to.equal(2); 
     });
 
     it('should check NFT tokenId ownership', async function () {
-        await expect(
+        expect(
             (await hhNFT.ownerOf(alice_tokenId)))
             .to.equal(alice.address);
-        await expect(
+        expect(
             (await hhNFT.ownerOf(bob_tokenId)))
             .to.equal(bob.address);    
     });
@@ -400,5 +423,48 @@ describe('LendingPool >> Borrow', function() {
             borrow(bob, hhNFT, bob_tokenId, hhAssetToken, borrowAmount3, bob.address, '123', false))
             .to.be.revertedWith('UNDERCOLLATERALIZED');
             
+    });
+
+    it('should create a batch of borrows, escrow NFTs, release tokens and create debt', async function() {
+        const depositAmount = ethers.utils.parseUnits('4', 18); 
+        const borrowAmount = ethers.utils.parseUnits('2', 18); 
+        const liquidityIndex = ethers.utils.parseUnits('1.000000006341958396752917300', 27);
+
+        // Initialize reserve
+        await initReserve();
+
+        // Deposit Asset tokens [required for liquidity]
+        await deposit(alice, hhNFT.address, hhAssetToken, depositAmount, alice.address, '123');
+        
+        // Expect: Create Batch Borrow
+        res = await batchBorrow(bob, [hhNFT, hhNFT], [bob_tokenId, bob_tokenId2], [hhAssetToken, hhAssetToken], [borrowAmount, borrowAmount], bob.address, '123');
+        // TODO: resolve why library events aren't triggering in hardhat
+        // TODO 2: rewrite Batch Borrow return args
+        expect(res).to.emit(hhLendingPool, 'BatchBorrow')
+            .withArgs(
+                hhAssetToken.address,
+                borrowAmount,
+                hhNFT.address,
+                bob_tokenId,
+                bob.address, 
+                liquidityIndex);
+
+        // Expect: NFTs to be held in Escrow
+        expect(
+            (await hhNFT.ownerOf(bob_tokenId)))
+            .to.equal(hhCollateralManagerAddress);
+        expect(
+            (await hhNFT.ownerOf(bob_tokenId2)))
+            .to.equal(hhCollateralManagerAddress);
+            
+        // Expect: assetTokens transferred to bob
+        expect(
+            (await hhAssetToken.balanceOf(bob.address)))
+            .to.equal(hhAssetTokenInitialBalance.add(borrowAmount).add(borrowAmount));
+
+        // Expect: assetTokens transferred to bob
+        expect(
+            (await hhDebtToken.balanceOf(bob.address)))
+            .to.equal(borrowAmount.add(borrowAmount));
     });
 });

@@ -91,6 +91,37 @@ library BorrowLogic {
         );
     }
 
+    function executeBatchBorrow(
+        mapping(address => string) storage assetNames,
+        mapping(bytes32 => DataTypes.Reserve) storage reserves,
+        DataTypes.ExecuteBatchBorrowParams memory params  
+    )
+        external
+    {
+        require(params.collaterals.length == params.assets.length, "Inconsistent assets length");
+        require(params.collaterals.length == params.amounts.length, "Inconsistent amounts length");
+        require(params.collaterals.length == params.tokenIds.length, "Inconsistent tokenIds length");
+
+        for (uint256 i = 0; i < params.collaterals.length; i++) {
+            _borrow(
+                assetNames,
+                reserves,
+                DataTypes.ExecuteBorrowParams({
+                    initiator: params.initiator,
+                    asset: params.assets[i],
+                    amount: params.amounts[i],
+                    collateral: params.collaterals[i],
+                    tokenId: params.tokenIds[i],
+                    onBehalfOf: params.onBehalfOf,
+                    referralCode: params.referralCode,
+                    tokenPriceConsumerAddress: params.tokenPriceConsumerAddress,
+                    nftPriceConsumerAddress: params.nftPriceConsumerAddress,
+                    collateralManagerAddress: params.collateralManagerAddress
+                })
+            );
+        }
+    }
+
     function _borrow(
         mapping(address => string) storage assetNames,
         mapping(bytes32 => DataTypes.Reserve) storage reserves,

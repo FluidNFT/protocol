@@ -84,6 +84,19 @@ library DataTypes {
         address collateralManagerAddress;
     }
 
+    struct ExecuteBatchBorrowParams {
+        address initiator;
+        address[] assets;
+        uint256[] amounts;
+        address[] collaterals;
+        uint256[] tokenIds;
+        address onBehalfOf;
+        uint16 referralCode;
+        address tokenPriceConsumerAddress;
+        address nftPriceConsumerAddress;
+        address collateralManagerAddress;
+    }
+
     struct ExecuteRepayParams {
         address initiator;
         address collateral;

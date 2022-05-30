@@ -33,13 +33,6 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
 
     bytes32 internal constant CONFIGURATOR_ROLE = keccak256("CONFIGURATOR_ROLE");
 
-    bytes32 private constant BID = keccak256("BID");
-    bytes32 private constant BORROW = keccak256("BORROW");
-    bytes32 private constant DEPOSIT = keccak256("DEPOSIT");
-    bytes32 private constant LIQUIDATE = keccak256("LIQUIDATE");
-    bytes32 private constant REDEEM = keccak256("REDEEM");
-    bytes32 private constant REPAY = keccak256("REPAY");
-    bytes32 private constant WITHDRAW = keccak256("WITHDRAW");
     bytes32 private constant CM = keccak256("CM");
     bytes32 private constant NFT_PRICE_ORACLE = keccak256("NFT_PRICE_ORACLE");
     bytes32 private constant TOKEN_PRICE_ORACLE = keccak256("TOKEN_PRICE_ORACLE");
@@ -66,23 +59,23 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         _;
     }
 
-    modifier whenReserveActive(address collateral, address asset) {
-        DataTypes.Reserve memory reserve = _reserves[keccak256(abi.encode(collateral, asset))];  
-        require(reserve.status == DataTypes.ReserveStatus.Active, "R1");  
-        _;
-    }
+    // modifier whenReserveActive(address collateral, address asset) {
+    //     DataTypes.Reserve memory reserve = _reserves[keccak256(abi.encode(collateral, asset))];  
+    //     require(reserve.status == DataTypes.ReserveStatus.Active, "R1");  
+    //     _;
+    // }
 
-    modifier whenReserveNotPaused(address collateral, address asset) {
-        DataTypes.Reserve memory reserve = _reserves[keccak256(abi.encode(collateral, asset))];  
-        require(reserve.status != DataTypes.ReserveStatus.Paused, "R2");  
-        _;
-    }
+    // modifier whenReserveNotPaused(address collateral, address asset) {
+    //     DataTypes.Reserve memory reserve = _reserves[keccak256(abi.encode(collateral, asset))];  
+    //     require(reserve.status != DataTypes.ReserveStatus.Paused, "R2");  
+    //     _;
+    // }
 
-    modifier whenReserveNotProtected(address collateral, address asset) {
-        DataTypes.Reserve memory reserve = _reserves[keccak256(abi.encode(collateral, asset))];  
-        require(reserve.status != DataTypes.ReserveStatus.Protected, "R3");  
-        _;
-    }
+    // modifier whenReserveNotProtected(address collateral, address asset) {
+    //     DataTypes.Reserve memory reserve = _reserves[keccak256(abi.encode(collateral, asset))];  
+    //     require(reserve.status != DataTypes.ReserveStatus.Protected, "R3");  
+    //     _;
+    // }
 
     function updateInterestFee(uint256 interestFee) 
         public
@@ -146,7 +139,6 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
     /// @param collateral The NFT collateral contract address.
     /// @param asset The ERC20 address of the asset.
     /// @param amount The amount of ERC20 tokens.
-    /// @dev Calls `LendingPoolDeposit` function if modifiers are succeeded.  
     function deposit(
         address collateral,
         address asset, 
@@ -157,7 +149,7 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         external 
         nonReentrant
         whenNotPaused 
-        whenReserveActive(collateral, asset)
+        // whenReserveActive(collateral, asset)
     {
         SupplyLogic.executeDeposit(
             _reserves,
@@ -177,7 +169,6 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
     /// @param asset The ERC20 address of the asset.
     /// @param amount The amount of ERC20 tokens.
     /// @param to The address that will receive the underlying, same as msg.sender if the user wants to receive to their wallet or different if the benefitiary is a different wallet
-    /// @dev Calls `LendingPoolWithdraw` function if modifiers are succeeded. 
     function withdraw(
         address collateral,
         address asset, 
@@ -187,7 +178,7 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         external 
         nonReentrant
         whenNotPaused 
-        whenReserveNotPaused(collateral, asset)
+        // whenReserveNotPaused(collateral, asset)
     {
         SupplyLogic.executeWithdraw(
             _reserves,
@@ -205,7 +196,6 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
     /// @param asset The ERC20 token to be borrowed.
     /// @param amount The amount of ERC20 tokens to be borrowed.
     /// @param borrowId The unique identifier of the borrow.
-    /// @dev Calls `LendingPoolBid` function if modifiers are succeeded. 
     function bid(
         address asset, 
         uint256 amount, 
@@ -238,7 +228,6 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
     /// @param tokenId The tokenId of the ERC721 token to be deposited. 
     /// @param onBehalfOf The address to receive the loan.
     /// @param referralCode Code used to register the integrator originated the operation, for potential rewards.
-    /// @dev Calls `LendingPoolBorrow` function if modifiers are succeeded. 
     function borrow(
         address asset, 
         uint256 amount, 
@@ -250,7 +239,7 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         external 
         nonReentrant
         whenNotPaused
-        whenReserveActive(collateral, asset)
+        // whenReserveActive(collateral, asset)
     {
         BorrowLogic.executeBorrow(
             _assetNames,
@@ -271,11 +260,40 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         );
     }
 
+    function batchBorrow(
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        address[] calldata collaterals,
+        uint256[] calldata tokenIds,
+        address onBehalfOf,
+        uint16 referralCode
+    )
+        external 
+        nonReentrant
+        whenNotPaused
+    {
+        BorrowLogic.executeBatchBorrow(
+            _assetNames,
+            _reserves,
+            DataTypes.ExecuteBatchBorrowParams({
+                initiator: _msgSender(),
+                assets: assets,
+                amounts: amounts,
+                collaterals: collaterals,
+                tokenIds: tokenIds,
+                onBehalfOf: onBehalfOf,
+                referralCode: referralCode,
+                tokenPriceConsumerAddress: _tokenPriceConsumerAddress,
+                nftPriceConsumerAddress: _nftPriceConsumerAddress,
+                collateralManagerAddress: _collateralManagerAddress     
+            })
+        );
+    }
+
     /// @notice To liquidate a borrow position.
     /// @param collateral The ERC721 token used as collateral.
     /// @param asset The ERC20 token borrowed.
     /// @param borrowId The unique identifier of the borrow.
-    /// @dev Calls `LendingPoolLiquidate` function if modifiers are succeeded.   
     function liquidate(
         address collateral,
         address asset,
@@ -284,8 +302,8 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         external 
         nonReentrant
         whenNotPaused
-        whenReserveNotPaused(collateral, asset)
-        whenReserveNotProtected(collateral, asset)
+        // whenReserveNotPaused(collateral, asset)
+        // whenReserveNotProtected(collateral, asset)
     {
         LiquidateLogic.executeLiquidate(
             _assetNames,
@@ -310,7 +328,6 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
     /// @param asset The ERC20 token borrowed.
     /// @param amount The amount of ERC20 tokens to be repaid.
     /// @param borrowId The unique identifier of the borrow.
-    /// @dev Calls `LendingPoolRedeem` function if modifiers are succeeded.  
     function redeem(
         address collateral,
         address asset,
@@ -320,7 +337,7 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         external 
         nonReentrant
         whenNotPaused
-        whenReserveNotPaused(collateral, asset)
+        // whenReserveNotPaused(collateral, asset)
     {
         LiquidateLogic.executeRedeem(
             _assetNames,
@@ -343,7 +360,6 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
     /// @param asset The ERC20 token to be borrowed.
     /// @param amount The amount of ERC20 tokens to be repaid.
     /// @param borrowId The unique identifier of the borrow.
-    /// @dev Calls `LendingPoolRepay` function if modifiers are succeeded.  
     function repay(
         address collateral,
         address asset,
@@ -353,7 +369,7 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         external 
         nonReentrant
         whenNotPaused
-        whenReserveNotPaused(collateral, asset)
+        // whenReserveNotPaused(collateral, asset)
     {
         BorrowLogic.executeRepay(
             _assetNames,
