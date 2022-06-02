@@ -257,16 +257,16 @@ contract CollateralManager is Context, IERC721Receiver, AccessControl, Pausable,
         _unpause();
     }
 
-    /// @notice Sets the interest rate APY for a given reserve.
-    /// @param collateral The collateral contract address.
-    /// @param asset The asset contract address.
-    /// @param interestRate The (new) interest rate APY to set for the reserve.
-    /// @dev Mapping used to keep track of interest rates, set per reserve.
-    function setInterestRate(address collateral, address asset, uint256 interestRate) external onlyConfigurator {
-        interestRates[keccak256(abi.encode(collateral, asset))] = interestRate;
+    // /// @notice Sets the interest rate APY for a given reserve.
+    // /// @param collateral The collateral contract address.
+    // /// @param asset The asset contract address.
+    // /// @param interestRate The (new) interest rate APY to set for the reserve.
+    // /// @dev Mapping used to keep track of interest rates, set per reserve.
+    // function setInterestRate(address collateral, address asset, uint256 interestRate) external onlyConfigurator {
+    //     interestRates[keccak256(abi.encode(collateral, asset))] = interestRate;
 
-        emit SetInterestRate(collateral, asset, interestRate);
-    }
+    //     emit SetInterestRate(collateral, asset, interestRate);
+    // }
 
     /// @notice Sets the liquidation threshold for a given ERC721 token.
     /// @param _erc721Token The ERC721 token.

@@ -68,12 +68,19 @@ async function main() {
   await hhLiquidateLogicLib.deployed();
   hhLiquidateLogicLibAddress = await hhLiquidateLogicLib.resolvedAddress;
 
+  // Get and deploy ReserveLogic Library
+  ReserveLogicLib = await ethers.getContractFactory('ReserveLogic');
+  hhReserveLogicLib = await ReserveLogicLib.deploy();
+  await hhReserveLogicLib.deployed();
+  hhReserveLogicLibAddress = await hhReserveLogicLib.resolvedAddress;
+
   // Get and deploy LendingPool contract
   const LendingPool = await hre.ethers.getContractFactory('LendingPool', {
     libraries: {
         SupplyLogic: hhSupplyLogicLibAddress,
         BorrowLogic: hhBorrowLogicLibAddress,
-        LiquidateLogic: hhLiquidateLogicLibAddress
+        LiquidateLogic: hhLiquidateLogicLibAddress,
+        ReserveLogic: hhReserveLogicLibAddress
     }
   });
   const lendingPool = await LendingPool.connect(admin).deploy(
@@ -160,20 +167,34 @@ async function main() {
   fileData += `REACT_APP_${dataItem}`;
   docsFileData += dataItem;
 
+  // Get and deploy LendingPoolAddressesProvider
+  LendingPoolAddressesProvider = await ethers.getContractFactory("LendingPoolAddressesProvider");
+  hhLendingPoolAddressesProvider = await LendingPoolAddressesProvider.deploy("1"); // marketId
+  await hhLendingPoolAddressesProvider.deployed();
+  hhLendingPoolAddressesProviderAddress = await hhLendingPoolAddressesProvider.resolvedAddress;
+
+  await hhLendingPoolAddressesProvider.setLendingPool(lendingPool.address);
+  await hhLendingPoolAddressesProvider.setConfigurator(configurator.address);
+  await hhLendingPoolAddressesProvider.setCollateralManager(collateralManager.address);
+  await hhLendingPoolAddressesProvider.setPoolAdmin(admin.address);
+  await hhLendingPoolAddressesProvider.setEmergencyAdmin(emergencyAdmin.address);
+  // TODO: add Oracles and anything else
+
   // Get and deploy fToken contracts
-  FToken = await hre.ethers.getContractFactory('FToken');
+  FToken = await ethers.getContractFactory('FToken');
 
   // WETH FToken:
-  fTokenBAYCWETH = await FToken.connect(admin).deploy(
+  fTokenBAYCWETH = await  upgrades.deployProxy(FToken, [
+    hhLendingPoolAddressesProviderAddress, 
     configurator.address,
     lendingPool.address,
     treasuryAccount.address,
     nftBAYC.address,
     assetTokenWETH.address,
-    'BAYC-WETH F-Token', 
-    'FbaycWETH'
-  );
-
+    18,
+    "BAYC-ETH-A F-Token",
+    "baycETHa"
+  ]);
   await fTokenBAYCWETH.deployed();
   console.log("fTokenBAYCWETH deployed to:", fTokenBAYCWETH.address);
   dataItem = `N_TOKEN_WETH_CONTRACT_ADDRESS=${fTokenBAYCWETH.address}\n`;
@@ -181,18 +202,40 @@ async function main() {
   docsFileData += dataItem;
 
   // Get and deploy debtToken contracts
-  DebtToken = await hre.ethers.getContractFactory('DebtToken');
-  
-  // WETH:
-  debtTokenBAYCWETH = await DebtToken.connect(admin).deploy(
-    configurator.address,
-    lendingPool.address,
-    'BAYCWETH debtToken', 
-    'DbaycWETH'
-  );
+  DebtToken = await ethers.getContractFactory('DebtToken');
+  debtTokenBAYCWETH = await upgrades.deployProxy(DebtToken, [
+      hhLendingPoolAddressesProviderAddress, 
+      nftBAYC.address,
+      assetTokenWETH.address,
+      18,
+      "BAYC-ETH-A Debt-Token",
+      "DbaycETHa"
+  ]);
   await debtTokenBAYCWETH.deployed();  
   console.log("debtTokenBAYCWETH deployed to:", debtTokenBAYCWETH.address);
   dataItem = `DEBT_TOKEN_WETH_CONTRACT_ADDRESS=${debtTokenBAYCWETH.address}\n`;
+  fileData += `REACT_APP_${dataItem}`;
+  docsFileData += dataItem;
+
+  // Set Interest Rate Strategy
+  const rateStrategyOne = {
+    "name": "rateStrategyOne",
+    "optimalUtilizationRate": ethers.utils.parseUnits('0.65', 27),
+    "baseVariableBorrowRate": ethers.utils.parseUnits('0.03', 27),
+    "variableRateSlope1": ethers.utils.parseUnits('0.08', 27),
+    "variableRateSlope2": ethers.utils.parseUnits('1', 27),
+  };
+  InterestRateStrategy = await ethers.getContractFactory('InterestRateStrategy');
+  hhInterestRateStrategy = await InterestRateStrategy.deploy(
+      rateStrategyOne["optimalUtilizationRate"],
+      rateStrategyOne["baseVariableBorrowRate"],
+      rateStrategyOne["variableRateSlope1"],
+      rateStrategyOne["variableRateSlope2"]
+  );
+  await hhInterestRateStrategy.deployed();
+  hhInterestRateStrategyAddress = await hhInterestRateStrategy.resolvedAddress;
+  console.log("interestRateStrategy deployed to:", hhInterestRateStrategyAddress);
+  dataItem = `INTEREST_RATE_STRATEGY_CONTRACT_ADDRESS=${hhInterestRateStrategyAddress}\n`;
   fileData += `REACT_APP_${dataItem}`;
   docsFileData += dataItem;
 
@@ -201,9 +244,11 @@ async function main() {
   await configurator.connect(admin).initLendingPoolReserve(
     nftBAYC.address,
     assetTokenWETH.address, 
+    hhInterestRateStrategy.address,
     fTokenBAYCWETH.address, 
     debtTokenBAYCWETH.address, 
-    "WETH"
+    "WETH",
+    ethers.utils.parseUnits("30", 2), //30 x 10^2 = 3000 => 30% in percentageMaths 
   );
   console.log('Initialized Reserves');
 
@@ -214,11 +259,6 @@ async function main() {
   // Whitelist NFT
   // await configurator.connect(admin).updateCollateralManagerWhitelist(nftPUNK.address, true);
   await configurator.connect(admin).updateCollateralManagerWhitelist(nftBAYC.address, true);
-
-  // Set NFT-specific APRs
-  console.log('assetTokenWETH.address', assetTokenWETH.address);
-  // await configurator.connect(admin).setCollateralManagerInterestRateassetTokenWETH.address, 18);
-  await configurator.connect(admin).setCollateralManagerInterestRate(nftBAYC.address, assetTokenWETH.address, ethers.utils.parseUnits('20', 25)); // 20% in RAY (1e27)
 
   // Set Mocked Oracle NFT prices
   let mockFloorPrice;

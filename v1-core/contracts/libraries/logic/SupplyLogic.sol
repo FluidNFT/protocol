@@ -150,6 +150,44 @@ library SupplyLogic {
     )  
         external
     {
+        _deposit(
+            reserves,
+            params
+        );
+    }
+
+    function executeBatchDeposit(
+        mapping(address => mapping(address => DataTypes.Reserve)) storage reserves,
+        DataTypes.ExecuteBatchDepositParams memory params
+    )
+        external 
+    {
+        require(params.collaterals.length == params.assets.length, "Inconsistent assets length");
+        require(params.collaterals.length == params.amounts.length, "Inconsistent amounts length");
+        require(params.collaterals.length == params.onBehalfOfs.length, "Inconsistent onBehalfOfs length");
+        require(params.collaterals.length == params.referralCodes.length, "Inconsistent onBehalfOfs length");
+
+        for (uint256 i = 0; i < params.collaterals.length; i++) {
+            _deposit(
+                reserves,
+                DataTypes.ExecuteDepositParams({
+                    initiator: params.initiator,
+                    collateral: params.collaterals[i],
+                    asset: params.assets[i],
+                    amount: params.amounts[i],
+                    onBehalfOf: params.onBehalfOfs[i],
+                    referralCode: params.referralCodes[i]
+                })
+            );
+        }
+    }
+
+    function _deposit(
+        mapping(address => mapping(address => DataTypes.Reserve)) storage reserves,
+        DataTypes.ExecuteDepositParams memory params
+    )
+        internal
+    {
         require(params.onBehalfOf != address(0), "INVALID_ONBEHALFOF");
 
         DataTypes.Reserve storage reserve = reserves[params.collateral][params.asset];

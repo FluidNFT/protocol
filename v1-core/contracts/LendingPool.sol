@@ -87,26 +87,26 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
     //     _;
     // }
 
-    function updateInterestFee(uint256 interestFee) 
-        public
-        onlyConfigurator
-    {
-        _interestFee = interestFee;
-    }
+    // function updateInterestFee(uint256 interestFee) 
+    //     public
+    //     onlyConfigurator
+    // {
+    //     _interestFee = interestFee;
+    // }
 
-    function updateLiquidationFee(uint256 liquidationFee) 
-        public
-        onlyConfigurator
-    {
-        _liquidationFee = liquidationFee;
-    }
+    // function updateLiquidationFee(uint256 liquidationFee) 
+    //     public
+    //     onlyConfigurator
+    // {
+    //     _liquidationFee = liquidationFee;
+    // }
 
-    function updateLiquidationFeeProtocolPercentage(uint256 protocolPercentage) 
-        public
-        onlyConfigurator
-    {
-        _liquidationFeeProtocolPercentage = protocolPercentage;
-    }
+    // function updateLiquidationFeeProtocolPercentage(uint256 protocolPercentage) 
+    //     public
+    //     onlyConfigurator
+    // {
+    //     _liquidationFeeProtocolPercentage = protocolPercentage;
+    // }
 
     /**
     * @dev Returns an indexed list of the initialized reserve collaterals and assets
@@ -176,31 +176,31 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         _assetNames[asset] = assetName;
     }
 
-    function _addReserveToList(
-        address collateral, 
-        address asset,
-        uint256 reserveFactor
-    ) 
-        internal 
-    {
-        uint256 reservesCount = _reservesCount;
+    // function _addReserveToList(
+    //     address collateral, 
+    //     address asset,
+    //     uint256 reserveFactor
+    // ) 
+    //     internal 
+    // {
+    //     uint256 reservesCount = _reservesCount;
 
-        require(reservesCount < _maxNumberOfReserves, Errors.LP_NO_MORE_RESERVES_ALLOWED);
+    //     require(reservesCount < _maxNumberOfReserves, Errors.LP_NO_MORE_RESERVES_ALLOWED);
 
-        bool reserveAlreadyAdded = _reserves[collateral][asset].id != 0 
-            || (_reservesList[0].collateral == collateral && _reservesList[0].asset == asset);
+    //     bool reserveAlreadyAdded = _reserves[collateral][asset].id != 0 
+    //         || (_reservesList[0].collateral == collateral && _reservesList[0].asset == asset);
 
-        if (!reserveAlreadyAdded) {
-            _reserves[collateral][asset].id = uint8(reservesCount);
-            _reservesList[reservesCount] = DataTypes.ReserveConfig({
-                collateral: collateral,
-                asset: asset,
-                reserveFactor: reserveFactor
-            });
+    //     if (!reserveAlreadyAdded) {
+    //         _reserves[collateral][asset].id = uint8(reservesCount);
+    //         _reservesList[reservesCount] = DataTypes.ReserveConfig({
+    //             collateral: collateral,
+    //             asset: asset,
+    //             reserveFactor: reserveFactor
+    //         });
 
-            _reservesCount = reservesCount + 1;
-        }
-    }
+    //         _reservesCount = reservesCount + 1;
+    //     }
+    // }
 
     /// @notice Deposit assets into the lending pool.
     /// @param collateral The NFT collateral contract address.
@@ -227,6 +227,30 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
                 amount: amount, 
                 onBehalfOf: onBehalfOf,
                 referralCode: referralCode
+            })
+        );
+    }
+
+    function batchDeposit(
+        address[] calldata collaterals,
+        address[] calldata assets, 
+        uint256[] calldata amounts,
+        address[] calldata onBehalfOfs,
+        uint16[] calldata referralCodes
+    ) 
+        external 
+        nonReentrant
+        whenNotPaused
+    {
+        SupplyLogic.executeBatchDeposit(
+            _reserves,
+            DataTypes.ExecuteBatchDepositParams({
+                initiator: _msgSender(),
+                collaterals: collaterals,
+                assets: assets,
+                amounts: amounts, 
+                onBehalfOfs: onBehalfOfs,
+                referralCodes: referralCodes
             })
         );
     }
@@ -456,17 +480,18 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         );
     }
 
-    /// @notice Pauses the contract `deposit`, `withdraw`, `borrow` and `repay` functions.
-    /// @dev Functions paused via modifiers using Pausable contract.
-    function pause() external onlyConfigurator {
-        _pause();
-    }
+    // TODO: uncomment (Spurious Dragon)
+    // /// @notice Pauses the contract `deposit`, `withdraw`, `borrow` and `repay` functions.
+    // /// @dev Functions paused via modifiers using Pausable contract.
+    // function pause() external onlyConfigurator {
+    //     _pause();
+    // }
 
-    /// @notice Unauses the contract `deposit`, `withdraw`, `borrow` and `repay` functions.
-    /// @dev Functions unpaused via modifiers using Pausable contract.
-    function unpause() external onlyConfigurator {
-        _unpause();
-    }
+    // /// @notice Unauses the contract `deposit`, `withdraw`, `borrow` and `repay` functions.
+    // /// @dev Functions unpaused via modifiers using Pausable contract.
+    // function unpause() external onlyConfigurator {
+    //     _unpause();
+    // }
 
     function getReserveData(
         address collateral,

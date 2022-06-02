@@ -515,42 +515,42 @@ describe('LendingPool >> Borrow', function() {
             .to.equal(borrowAmount.add(borrowAmount));
     });
 
-    // it('should return an interest rate', async function() {
-    //     const depositAmount = ethers.utils.parseUnits('4', 18); 
-    //     const borrowAmount = ethers.utils.parseUnits('2', 18); 
+    it('should return an interest rate', async function() {
+        const depositAmount = ethers.utils.parseUnits('4', 18); 
+        const borrowAmount = ethers.utils.parseUnits('2', 18); 
 
-    //     // Initialize reserve
-    //     await initReserve();
+        // Initialize reserve
+        await initReserve();
 
-    //     // Deposit Asset tokens [required for liquidity]
-    //     await deposit(alice, hhNFT.address, hhAssetToken, depositAmount, alice.address, '123');
+        // Deposit Asset tokens [required for liquidity]
+        await deposit(alice, hhNFT.address, hhAssetToken, depositAmount, alice.address, '123');
         
-    //     // Expect: Create Batch Borrow
-    //     res = await batchBorrow(bob, [hhNFT, hhNFT], [bob_tokenId, bob_tokenId2], [hhAssetToken, hhAssetToken], [borrowAmount, borrowAmount], bob.address, '123');
-    //     // TODO: resolve why library events aren't triggering in hardhat
-    //     // TODO 2: rewrite Batch Borrow return args
-    //     // expect(res).to.emit(hhLendingPool, 'BatchBorrow')
-    //     //     .withArgs(
-    //     //         hhAssetToken.address,
-    //     //         borrowAmount,
-    //     //         hhNFT.address,
-    //     //         bob_tokenId,
-    //     //         bob.address, 
-    //     //         liquidityIndex);
+        // Expect: Create Batch Borrow
+        res = await batchBorrow(bob, [hhNFT, hhNFT], [bob_tokenId, bob_tokenId2], [hhAssetToken, hhAssetToken], [borrowAmount, borrowAmount], bob.address, '123');
+        // TODO: resolve why library events aren't triggering in hardhat
+        // TODO 2: rewrite Batch Borrow return args
+        // expect(res).to.emit(hhLendingPool, 'BatchBorrow')
+        //     .withArgs(
+        //         hhAssetToken.address,
+        //         borrowAmount,
+        //         hhNFT.address,
+        //         bob_tokenId,
+        //         bob.address, 
+        //         liquidityIndex);
 
-    //     let baseVariableBorrowRate = await hhInterestRateStrategy.baseVariableBorrowRate()
-    //     console.log('baseVariableBorrowRate', baseVariableBorrowRate);
+        let baseVariableBorrowRate = await hhInterestRateStrategy.baseVariableBorrowRate()
+        console.log('baseVariableBorrowRate', baseVariableBorrowRate);
 
-    //     let interestRate = await hhInterestRateStrategy.calculateInterestRates(
-    //         hhAssetToken.address,
-    //         hhFToken.address,
-    //         "0",
-    //         "0",
-    //         ethers.utils.parseUnits('1', 18),
-    //         "5"
-    //     );
-    //     console.log('liquidityRate', ethers.utils.formatUnits(interestRate[0], 27));
-    //     console.log('interestRate', ethers.utils.formatUnits(interestRate[1], 27));
+        let interestRate = await hhInterestRateStrategy.calculateInterestRates(
+            hhAssetToken.address,
+            hhFToken.address,
+            "0",
+            "0",
+            ethers.utils.parseUnits('1', 18),
+            "5"
+        );
+        console.log('liquidityRate', ethers.utils.formatUnits(interestRate[0], 27));
+        console.log('interestRate', ethers.utils.formatUnits(interestRate[1], 27));
         
-    // });
+    });
 });

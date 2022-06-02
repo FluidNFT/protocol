@@ -83,6 +83,15 @@ library DataTypes {
         uint16 referralCode;
     }
 
+    struct ExecuteBatchDepositParams {
+        address initiator;
+        address[] collaterals;
+        address[] assets;
+        uint256[] amounts;
+        address[] onBehalfOfs;
+        uint16[] referralCodes;
+    }
+
     struct ExecuteWithdrawParams {
         address initiator;
         address collateral;

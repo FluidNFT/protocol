@@ -19,7 +19,7 @@ contract TokenPriceConsumer {
      * Returns the mock ETH / USD price
      */
     function getMockEthUsdPrice() public view returns (uint256) {
-        int price = 2826960000000000000000; // 2,826.96 * 10**18
+        int price = 1826960000000000000000; // 2,826.96 * 10**18
         return uint256(price);
     }
 

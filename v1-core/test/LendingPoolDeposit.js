@@ -252,6 +252,19 @@ async function deposit(initiator, poolCollateralAddress, assetToken, tokenAmount
     return hhLendingPool.connect(initiator).deposit(poolCollateralAddress, assetToken.address, tokenAmount, onBehalfOf, referralCode); 
 }
 
+async function batchDeposit(initiator, poolCollateralAddress, assetToken, tokenAmount, onBehalfOf, referralCode) {
+    // Approve transferFrom lendingPool 
+    await assetToken.connect(initiator).approve(hhLendingPoolAddress, tokenAmount.add(tokenAmount));
+    // Deposit in hhFToken contract reserve
+    return hhLendingPool.connect(initiator).batchDeposit(
+        [poolCollateralAddress, poolCollateralAddress], 
+        [assetToken.address, assetToken.address], 
+        [tokenAmount, tokenAmount], 
+        [onBehalfOf, onBehalfOf], 
+        [referralCode, referralCode]
+    ); 
+}
+
 async function withdraw(signer, poolCollateralAddress, assetToken, fToken, _tokenAmount) {
     // Approve fToken burnFrom lendingPool 
     await fToken.connect(signer).approve(hhLendingPoolAddress, _tokenAmount);
@@ -351,6 +364,25 @@ describe('LendingPool >> Deposit', function() {
         expect(
             (await hhFToken.balanceOf(alice.address)))
             .to.equal(depositAmount);
+    });
+
+    it('should batch deposit', async function () {            
+        const depositAmount = ethers.utils.parseUnits('1', 18);
+
+        // Initialize reserve
+        await initReserve();
+
+        // Vatcg deposit Asset tokens
+        await batchDeposit(alice, hhNFT.address, hhAssetToken, depositAmount, alice.address, '123')
+
+        // Expect: fTokens minted to alice 
+        expect(
+            (await hhFToken.balanceOf(hhFToken.address)))
+            .to.equal(0);
+
+        expect(
+            (await hhFToken.balanceOf(alice.address)))
+            .to.equal(depositAmount.add(depositAmount));
     });
 
 });
