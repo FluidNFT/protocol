@@ -23,6 +23,7 @@ let alice;
 let bob;
 let alice_tokenId;
 let bob_tokenId;
+let bob_tokenId2;
 let liquidationThreshold = 150;
 let interestRate = 20;
 let reserveFactor = 30;  
@@ -37,6 +38,7 @@ beforeEach(async function() {
     hhAssetTokenInitialBalance = ethers.utils.parseUnits('1000000', 18);
     alice_tokenId = 0;
     bob_tokenId = 1;
+    bob_tokenId2 = 2;
 
     // Get Signers
     [admin, emergencyAdmin, alice, bob, treasury] = await ethers.getSigners();
@@ -207,6 +209,7 @@ beforeEach(async function() {
     // Mint NFTs to alice and bob
     await hhNFT.mint(alice.address, alice_tokenId);
     await hhNFT.mint(bob.address, bob_tokenId);
+    await hhNFT.mint(bob.address, bob_tokenId2);
 
     // Set/Mock NFT Price Oracle NFT price
     const mockFloorPrice = ethers.utils.parseUnits('100', 18);
@@ -292,6 +295,16 @@ async function bid(signer, assetToken, bidAmount, borrowId) {
         assetToken.address,
         bidAmount,
         borrowId);
+}
+
+async function batchBid(signer, assetTokens, bidAmounts, borrowIds) {
+    // Approve transfer of bidAmount asset tokens to lendingPool address)
+    await assetTokens[0].connect(signer).approve(hhLendingPoolAddress, bidAmounts[0].add(bidAmounts[1]));
+    return hhLendingPool.connect(signer).batchBid(
+        [assetTokens[0].address, assetTokens[1].address],
+        [bidAmounts[0], bidAmounts[1]],
+        [borrowIds[0], borrowIds[1]]
+    );
 }
 
 async function redeem(signer, assetToken, redeemAmount, borrowId) {
@@ -471,6 +484,50 @@ describe('LendingPool >> Bid', function() {
         await expect(
             bid(alice, hhAssetToken, bidAmount, borrowId)
             ).to.be.revertedWith("INSUFFICIENT_BID");
+    });
+
+    it('should batch bid', async function () {
+        const depositAmount = ethers.utils.parseUnits('200', 18); 
+        const borrowAmount = ethers.utils.parseUnits('60', 18);  
+        const bidAmount = ethers.utils.parseUnits('90', 18);
+        let newPrice;
+        // Initialize reserve
+        await initReserve();
+
+        // Deposit Asset tokens [required for liquidity]
+        await deposit(alice, hhNFT.address, hhAssetToken, depositAmount, alice.address, '123');
+
+        // Borrow Asset tokens
+        await borrow(bob, hhNFT, bob_tokenId, hhAssetToken, borrowAmount, bob.address, '123');
+        await borrow(bob, hhNFT, bob_tokenId2, hhAssetToken, borrowAmount, bob.address, '123');
+    
+
+        // Retrieve borrowId 
+        borrowIds = await hhCollateralManager.getUserBorrowIds(bob.address);
+        borrowId = borrowIds[0];
+        borrowId2 = borrowIds[1];
+
+        newPrice = ethers.utils.parseUnits('80', 18);
+        await hhConfigurator.connect(admin).setNFTPriceConsumerFloorPrice(hhNFT.address, newPrice);
+
+        await batchBid(
+            alice, 
+            [hhAssetToken, hhAssetToken], 
+            [bidAmount, bidAmount], 
+            [borrowId, borrowId2]
+        );
+
+        borrowItem = await hhCollateralManager.getBorrow(borrowId);
+        expect(borrowItem.status).to.equal(1); //ActiveAuction
+        expect(borrowItem.auction.caller).to.equal(alice.address);
+        expect(borrowItem.auction.bidder).to.equal(alice.address);
+        expect(borrowItem.auction.bid).to.equal(bidAmount);
+
+        borrowItem2 = await hhCollateralManager.getBorrow(borrowId2);
+        expect(borrowItem2.status).to.equal(1); //ActiveAuction
+        expect(borrowItem2.auction.caller).to.equal(alice.address);
+        expect(borrowItem2.auction.bidder).to.equal(alice.address);
+        expect(borrowItem2.auction.bid).to.equal(bidAmount);
     });
 
 });

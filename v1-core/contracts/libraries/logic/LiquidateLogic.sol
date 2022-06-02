@@ -103,6 +103,34 @@ library LiquidateLogic {
         _bid(assetNames, reserves, params);
     }
 
+    function executeBatchBid(
+        mapping(address => string) storage assetNames,
+        mapping(address => mapping(address => DataTypes.Reserve)) storage reserves,
+        DataTypes.ExecuteBatchBidParams memory params   
+    )
+        external 
+    {
+        require(params.borrowIds.length == params.assets.length, "Inconsistent assets length");
+        require(params.borrowIds.length == params.amounts.length, "Inconsistent amounts length");
+
+        for (uint256 i = 0; i < params.borrowIds.length; i++) {
+            _bid(
+                assetNames,
+                reserves,
+                DataTypes.ExecuteBidParams({
+                    initiator: params.initiator,
+                    asset: params.assets[i],
+                    amount: params.amounts[i],
+                    borrowId: params.borrowIds[i],
+                    tokenPriceConsumerAddress: params.tokenPriceConsumerAddress,
+                    nftPriceConsumerAddress: params.nftPriceConsumerAddress,
+                    collateralManagerAddress: params.collateralManagerAddress,
+                    liquidationFee: params.liquidationFee
+                })
+            );
+        }
+    }
+
     function _bid(
         mapping(address => string) storage assetNames,
         mapping(address => mapping(address => DataTypes.Reserve)) storage reserves,

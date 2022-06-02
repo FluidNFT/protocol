@@ -311,6 +311,31 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
             })
         );
     }
+    
+    function batchBid(
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        uint256[] calldata borrowIds
+    )
+        external
+        nonReentrant
+        whenNotPaused
+    {
+        LiquidateLogic.executeBatchBid(
+            _assetNames,
+            _reserves,
+            DataTypes.ExecuteBatchBidParams({
+                initiator: _msgSender(),
+                assets: assets,
+                amounts: amounts,
+                borrowIds: borrowIds,
+                tokenPriceConsumerAddress: _tokenPriceConsumerAddress,
+                nftPriceConsumerAddress: _nftPriceConsumerAddress,
+                collateralManagerAddress: _collateralManagerAddress,
+                liquidationFee: _liquidationFee
+            })
+        );
+    }
 
     /// @notice External function to create a borrow position.
     /// @param asset The ERC20 token to be borrowed.
@@ -462,7 +487,6 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         whenNotPaused
         // whenReserveNotPaused(collateral, asset)
     {
-        (,, uint256 accruedBorrowAmount) = ICollateralManager(_collateralManagerAddress).getBorrowAmount(borrowId);
         BorrowLogic.executeRepay(
             _assetNames,
             _reserves,
@@ -509,35 +533,36 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         return (userBalance, depositBalance, borrowBalance);
     }
 
-    /// @notice Update status of a reserve.
-    /// @param collateral The NFT collateral contract address.
-    /// @param asset The ERC20, reserve asset token.
-    /// @param interestRateStrategy The interest rate strategy of the reserve
-    /// @param status The new status.
-    /// @dev To activate all functions for a single reserve.
-    function updateReserve(
-        address collateral, 
-        address asset,
-        address interestRateStrategy,
-        bytes32 status
-    ) 
-        external 
-        onlyConfigurator 
-    {
-        DataTypes.Reserve storage reserve = _reserves[collateral][asset]; 
+    // TODO: move to Configuration
+    // /// @notice Update status of a reserve.
+    // /// @param collateral The NFT collateral contract address.
+    // /// @param asset The ERC20, reserve asset token.
+    // /// @param interestRateStrategy The interest rate strategy of the reserve
+    // /// @param status The new status.
+    // /// @dev To activate all functions for a single reserve.
+    // function updateReserve(
+    //     address collateral, 
+    //     address asset,
+    //     address interestRateStrategy,
+    //     bytes32 status
+    // ) 
+    //     external 
+    //     onlyConfigurator 
+    // {
+    //     DataTypes.Reserve storage reserve = _reserves[collateral][asset]; 
         
-        if (status==ACTIVE) {
-            reserve.status = DataTypes.ReserveStatus.Active;  
-        } else if (status==FROZEN) {
-            reserve.status = DataTypes.ReserveStatus.Frozen;
-        } else if (status==PAUSED) {
-            reserve.status = DataTypes.ReserveStatus.Paused;
-        } else if (status==PROTECTED) {
-            reserve.status = DataTypes.ReserveStatus.Protected;
-        }
+    //     if (status==ACTIVE) {
+    //         reserve.status = DataTypes.ReserveStatus.Active;  
+    //     } else if (status==FROZEN) {
+    //         reserve.status = DataTypes.ReserveStatus.Frozen;
+    //     } else if (status==PAUSED) {
+    //         reserve.status = DataTypes.ReserveStatus.Paused;
+    //     } else if (status==PROTECTED) {
+    //         reserve.status = DataTypes.ReserveStatus.Protected;
+    //     }
         
-        emit ReserveStatus(collateral, asset, status);
-    }
+    //     emit ReserveStatus(collateral, asset, status);
+    // }
 
     // /// @notice Private function to initialize a reserve.
     // /// @param collateral The NFT collateral contract address.

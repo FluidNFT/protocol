@@ -333,6 +333,7 @@ contract CollateralManager is Context, IERC721Receiver, AccessControl, Pausable,
         return nftBorrows[keccak256(abi.encode(collateral, tokenId))];
     }
 
+    // TODO: update with dynamic interest rate logic
     function getBorrowBalance(address collateral, uint256 tokenId) public view returns (uint256) {
         uint256 borrowBalanceAmount;
         uint256 borrowId = nftBorrows[keccak256(abi.encode(collateral, tokenId))];

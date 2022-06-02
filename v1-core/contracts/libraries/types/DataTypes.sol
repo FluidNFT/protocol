@@ -160,6 +160,17 @@ library DataTypes {
         uint256 liquidationFee;
     }
 
+    struct ExecuteBatchBidParams {
+        address initiator;
+        address[] assets;
+        uint256[] amounts;
+        uint256[] borrowIds;
+        address tokenPriceConsumerAddress;
+        address nftPriceConsumerAddress;
+        address collateralManagerAddress;
+        uint256 liquidationFee;
+    }
+
     struct ExecuteRedeemParams {
         address initiator;
         address collateral;
