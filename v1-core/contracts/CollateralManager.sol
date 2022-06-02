@@ -79,15 +79,15 @@ contract CollateralManager is Context, IERC721Receiver, AccessControl, Pausable,
         uint256 id
     );
 
-    /// @notice Emitted when the interest rate is set for a given reserve.
-    /// @param collateral The collateral contract address.
-    /// @param asset The asset contract address
-    /// @param interestRate Interest rate in RAY (1e27)
-    event SetInterestRate(
-        address collateral,
-        address asset,
-        uint256 interestRate
-    );
+    // /// @notice Emitted when the interest rate is set for a given reserve.
+    // /// @param collateral The collateral contract address.
+    // /// @param asset The asset contract address
+    // /// @param interestRate Interest rate in RAY (1e27)
+    // event SetInterestRate(
+    //     address collateral,
+    //     address asset,
+    //     uint256 interestRate
+    // );
 
     /// @notice Emitted when the liquidation threshold is set for a given NFT project.
     /// @param erc721Token The ERC721 token for the NFT project.

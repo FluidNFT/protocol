@@ -14,5 +14,5 @@ WIP
 
 ## Licensing
 
-The primary license for the Protocol is the Business Source License 1.1 (`BUSL-1.1`), see:
+The primary license for the Protocol is the Business Source License 1.1 (`AGPL-3.0`), see:
 * [`./v1-core/LICENSE`](./v1-core/LICENCE).
