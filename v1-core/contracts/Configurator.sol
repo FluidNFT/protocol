@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
@@ -108,16 +108,20 @@ contract Configurator is Context, AccessControl {
     /// @notice Initializes a Lending Pool reserve.
     /// @param collateral The NFT collateral contract address.
     /// @param asset The ERC20, reserve asset token.
+    /// @param interestRateStrategy The interest rate strategy.
     /// @param fTokenAddress The derivative fToken address.
     /// @param debtTokenAddress The derivative debtToken address.
     /// @param assetName The name of the asset. E.g. WETH.
+    /// @param reserveFactor The reserve factor.
     /// @dev External `initReserve` function calls `_initReserve` if modifiers are succeeded.    
     function initLendingPoolReserve(
         address collateral,
         address asset, 
+        address interestRateStrategy,
         address fTokenAddress,
         address debtTokenAddress,
-        string calldata assetName
+        string calldata assetName,
+        uint256 reserveFactor
     )
         public
         onlyAdmin
@@ -126,9 +130,11 @@ contract Configurator is Context, AccessControl {
         ILendingPool(lendingPoolAddress).initReserve(
             collateral,
             asset, 
+            interestRateStrategy,
             fTokenAddress, 
             debtTokenAddress,
-            assetName
+            assetName,
+            reserveFactor
         );
     }
 
@@ -269,21 +275,21 @@ contract Configurator is Context, AccessControl {
         );
     }
 
-    function setCollateralManagerInterestRate(
-        address collateral,
-        address asset,
-        uint256 interestRate
-    )
-        public
-        onlyAdmin
-        whenCollateralManagerConnected
-    {
-        ICollateralManager(collateralManagerAddress).setInterestRate(
-            collateral,
-            asset,
-            interestRate  
-        );
-    }
+    // function setCollateralManagerInterestRate(
+    //     address collateral,
+    //     address asset,
+    //     uint256 interestRate
+    // )
+    //     public
+    //     onlyAdmin
+    //     whenCollateralManagerConnected
+    // {
+    //     ICollateralManager(collateralManagerAddress).setInterestRate(
+    //         collateral,
+    //         asset,
+    //         interestRate  
+    //     );
+    // }
 
     function setCollateralManagerLiquidationThreshold(
         address _erc721Token,
@@ -328,39 +334,4 @@ contract Configurator is Context, AccessControl {
         ICollateralManager(collateralManagerAddress).unpause();
     }
 
-    function pauseFToken(
-        address fTokenAddress
-    ) 
-        public 
-        onlyEmergencyAdmin
-    {
-        IFToken(fTokenAddress).pause();
-    }
-
-    function unpauseFToken(
-        address fTokenAddress
-    ) 
-        public 
-        onlyEmergencyAdmin
-    {
-        IFToken(fTokenAddress).unpause();
-    }
-
-    function pauseDebtToken(
-        address debtTokenAddress
-    ) 
-        public 
-        onlyEmergencyAdmin
-    {
-        IDebtToken(debtTokenAddress).pause();
-    }
-
-    function unpauseDebtToken(
-        address debtTokenAddress
-    ) 
-        public 
-        onlyEmergencyAdmin
-    {
-        IDebtToken(debtTokenAddress).unpause();
-    }
 }

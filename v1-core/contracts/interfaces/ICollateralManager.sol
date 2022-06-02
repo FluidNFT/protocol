@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.0;
 
-import { DataTypes } from "../libraries/DataTypes.sol";
+import { DataTypes } from "../libraries/types/DataTypes.sol";
 
 interface ICollateralManager {
 
@@ -17,6 +17,7 @@ interface ICollateralManager {
         uint256 borrowAmount,
         uint256 interestRate,
         uint256 liquidationPrice,
+        uint256 borrowIndex,
         uint40 timestamp
     ) 
         external 
@@ -25,7 +26,8 @@ interface ICollateralManager {
     function withdraw(
         uint256 _id, 
         address asset, 
-        uint256 repaymentAmount
+        uint256 repaymentAmount,
+        uint256 borrowIndex
     ) 
         external
         returns (
@@ -93,8 +95,15 @@ interface ICollateralManager {
         uint256 collateralFloorPrice,
         DataTypes.BorrowStatus status,
         bool isRepayment,
-        address msgSender
+        address msgSender,
+        uint256 borrowIndex
     )
         external
         returns (bool, uint256, uint256);
+
+    function getBorrowAmount(
+        uint256 borrowId
+    )
+        external
+        returns (address, address, uint256);
 }

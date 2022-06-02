@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
@@ -8,18 +8,27 @@ import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import { IFToken } from "./interfaces/IFToken.sol";
 import { IDebtToken } from "./interfaces/IDebtToken.sol";
 import { ICollateralManager } from "./interfaces/ICollateralManager.sol";
-import { DataTypes } from './libraries/DataTypes.sol';
+import { DataTypes } from './libraries/types/DataTypes.sol';
 import { LendingPoolLogic } from './LendingPoolLogic.sol';
 import { LendingPoolEvents } from './LendingPoolEvents.sol';
 import { TokenPriceConsumer } from './TokenPriceConsumer.sol';
-import { DataTypes } from "./libraries/DataTypes.sol";
-import { ReserveLogic } from "./libraries/ReserveLogic.sol";
-import { SupplyLogic } from "./libraries/SupplyLogic.sol";
-import { BorrowLogic } from "./libraries/BorrowLogic.sol";
-import { LiquidateLogic } from "./libraries/LiquidateLogic.sol";
+import { DataTypes } from "./libraries/types/DataTypes.sol";
+import { ReserveLogic } from "./libraries/logic/ReserveLogic.sol";
+import { SupplyLogic } from "./libraries/logic/SupplyLogic.sol";
+import { BorrowLogic } from "./libraries/logic/BorrowLogic.sol";
+import { LiquidateLogic } from "./libraries/logic/LiquidateLogic.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import { SafeMath } from '@openzeppelin/contracts/utils/math/SafeMath.sol';
-import "./WadRayMath.sol";
+import "./libraries/math/WadRayMath.sol";
+import {Errors} from "./libraries/helpers/Errors.sol";
+
+
+
+import { InterestLogic } from "./libraries/logic/InterestLogic.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
+
+
 import "hardhat/console.sol";
 
 /// @title Lending Pool contract for instant, permissionless NFT-backed loans
@@ -27,6 +36,7 @@ import "hardhat/console.sol";
 /// @notice Allows for the borrow/repay of loans and deposit/withdraw of assets.
 /// @dev This is our protocol's point of access.
 contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessControl, Pausable, ReentrancyGuard {
+    using SafeERC20 for IERC20;
     using SafeMath for uint256;  
     using WadRayMath for uint256;
     using ReserveLogic for DataTypes.Reserve;
@@ -98,6 +108,25 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         _liquidationFeeProtocolPercentage = protocolPercentage;
     }
 
+    /**
+    * @dev Returns an indexed list of the initialized reserve collaterals and assets
+    **/
+    function getReservesList() external view returns 
+    (
+        address[] memory, 
+        address[] memory
+    )
+    {
+        address[] memory _activeReserveCollaterals = new address[](_reservesCount);
+        address[] memory _activeReserveAssets = new address[](_reservesCount);
+
+        for (uint256 i = 0; i < _reservesCount; i++) {
+            _activeReserveCollaterals[i] = _reservesList[i].collateral;
+            _activeReserveAssets[i] = _reservesList[i].asset;
+        }
+        return (_activeReserveCollaterals, _activeReserveAssets);
+    }
+
     function connectContract(
         bytes32 contractName,
         address contractAddress
@@ -118,21 +147,59 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
     /// @notice Initializes a reserve.
     /// @param collateral The NFT collateral contract address.
     /// @param asset The ERC20, reserve asset token.
-    /// @param fTokenAddress The derivative fToken address.
-    /// @param debtTokenAddress The derivative debtToken address.
+    /// @param interestRateStrategy The interest rate strategy contract address.
+    /// @param fToken The derivative fToken address.
+    /// @param debtToken The derivative debtToken address.
     /// @param assetName The name of the asset. E.g. WETH.
+    /// @param reserveFactor The reserveFactor
     /// @dev Calls internal `_initReserve` function if modifiers are succeeded.    
     function initReserve(
         address collateral,
         address asset,
-        address fTokenAddress,
-        address debtTokenAddress,
-        string calldata assetName
+        address interestRateStrategy,
+        address fToken,
+        address debtToken,
+        string calldata assetName,
+        uint256 reserveFactor
     ) 
         external 
         onlyConfigurator 
     {
-        _initReserve(collateral, asset, fTokenAddress, debtTokenAddress, assetName);
+        // _initReserve(collateral, asset, fToken, debtToken, assetName);
+        _reserves[collateral][asset].init(
+            fToken,
+            debtToken,
+            interestRateStrategy,
+            reserveFactor
+        );
+        _underlyingAssets[fToken] = asset;
+        _assetNames[asset] = assetName;
+    }
+
+    function _addReserveToList(
+        address collateral, 
+        address asset,
+        uint256 reserveFactor
+    ) 
+        internal 
+    {
+        uint256 reservesCount = _reservesCount;
+
+        require(reservesCount < _maxNumberOfReserves, Errors.LP_NO_MORE_RESERVES_ALLOWED);
+
+        bool reserveAlreadyAdded = _reserves[collateral][asset].id != 0 
+            || (_reservesList[0].collateral == collateral && _reservesList[0].asset == asset);
+
+        if (!reserveAlreadyAdded) {
+            _reserves[collateral][asset].id = uint8(reservesCount);
+            _reservesList[reservesCount] = DataTypes.ReserveConfig({
+                collateral: collateral,
+                asset: asset,
+                reserveFactor: reserveFactor
+            });
+
+            _reservesCount = reservesCount + 1;
+        }
     }
 
     /// @notice Deposit assets into the lending pool.
@@ -371,6 +438,7 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         whenNotPaused
         // whenReserveNotPaused(collateral, asset)
     {
+        (,, uint256 accruedBorrowAmount) = ICollateralManager(_collateralManagerAddress).getBorrowAmount(borrowId);
         BorrowLogic.executeRepay(
             _assetNames,
             _reserves,
@@ -408,7 +476,7 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         view
         returns (uint256, uint256, uint256)
     {
-        DataTypes.Reserve memory reserve = _reserves[keccak256(abi.encode(collateral, asset))]; 
+        DataTypes.Reserve memory reserve = _reserves[collateral][asset]; 
         
         uint256 userBalance = IFToken(reserve.fTokenAddress).balanceOf(_msgSender());
         uint256 depositBalance = IERC20(asset).balanceOf(reserve.fTokenAddress);
@@ -419,17 +487,19 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
     /// @notice Update status of a reserve.
     /// @param collateral The NFT collateral contract address.
     /// @param asset The ERC20, reserve asset token.
+    /// @param interestRateStrategy The interest rate strategy of the reserve
     /// @param status The new status.
     /// @dev To activate all functions for a single reserve.
     function updateReserve(
         address collateral, 
         address asset,
+        address interestRateStrategy,
         bytes32 status
     ) 
         external 
         onlyConfigurator 
     {
-        DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))]; 
+        DataTypes.Reserve storage reserve = _reserves[collateral][asset]; 
         
         if (status==ACTIVE) {
             reserve.status = DataTypes.ReserveStatus.Active;  
@@ -444,33 +514,33 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
         emit ReserveStatus(collateral, asset, status);
     }
 
-    /// @notice Private function to initialize a reserve.
-    /// @param collateral The NFT collateral contract address.
-    /// @param asset The ERC20, reserve asset token.
-    /// @param fTokenAddress The derivative fToken address.
-    /// @param debtTokenAddress The derivative debtToken address.
-    /// @param assetName The name of the asset. E.g. WETH.
-    /// @dev ERC20 asset address used as reserve key.    
-    function _initReserve(
-        address collateral,
-        address asset,
-        address fTokenAddress,
-        address debtTokenAddress,
-        string calldata assetName
-    ) 
-        private
-    {
-        DataTypes.Reserve memory reserve;
-        reserve.status = DataTypes.ReserveStatus.Active;
-        reserve.fTokenAddress = fTokenAddress;
-        reserve.debtTokenAddress = debtTokenAddress;
-        reserve.liquidityIndex = 10**27;
-        _reserves[keccak256(abi.encode(collateral, asset))] = reserve;
-        _underlyingAssets[fTokenAddress] = asset;
-        _assetNames[asset] = assetName;
+    // /// @notice Private function to initialize a reserve.
+    // /// @param collateral The NFT collateral contract address.
+    // /// @param asset The ERC20, reserve asset token.
+    // /// @param fTokenAddress The derivative fToken address.
+    // /// @param debtTokenAddress The derivative debtToken address.
+    // /// @param assetName The name of the asset. E.g. WETH.
+    // /// @dev ERC20 asset address used as reserve key.    
+    // function _initReserve(
+    //     address collateral,
+    //     address asset,
+    //     address fTokenAddress,
+    //     address debtTokenAddress,
+    //     string calldata assetName
+    // ) 
+    //     private
+    // {
+    //     DataTypes.Reserve memory reserve;
+    //     reserve.status = DataTypes.ReserveStatus.Active;
+    //     reserve.fTokenAddress = fTokenAddress;
+    //     reserve.debtTokenAddress = debtTokenAddress;
+    //     reserve.liquidityIndex = 10**27;
+    //     _reserves[keccak256(abi.encode(collateral, asset))] = reserve;
+    //     _underlyingAssets[fTokenAddress] = asset;
+    //     _assetNames[asset] = assetName;
 
-        emit InitReserve(collateral, asset, _reserves[keccak256(abi.encode(collateral, asset))].fTokenAddress, _reserves[keccak256(abi.encode(collateral, asset))].debtTokenAddress);
-    }
+    //     emit InitReserve(collateral, asset, _reserves[keccak256(abi.encode(collateral, asset))].fTokenAddress, _reserves[keccak256(abi.encode(collateral, asset))].debtTokenAddress);
+    // }
 
     function getAuctionDuration() public view returns (uint40) {
         return _auctionDuration;
@@ -479,4 +549,56 @@ contract LendingPool is Context, LendingPoolLogic, LendingPoolEvents, AccessCont
     function setAuctionDuration(uint40 duration) external onlyConfigurator {
         _auctionDuration = duration;
     }
+
+      /**
+   * @dev Validates and finalizes an fToken transfer
+   * - Only callable by the overlying fToken of the `asset`
+   * @param collateral The address of the underlying collateral for the fToken
+   * @param asset The address of the underlying asset of the fToken
+   * @param from The user from which the fToken are transferred
+   * @param to The user receiving the fTokens
+   * @param amount The amount being transferred/withdrawn
+   * @param balanceFromBefore The fToken balance of the `from` user before the transfer
+   * @param balanceToBefore The fToken balance of the `to` user before the transfer
+   */
+    function finalizeTransfer(
+        address collateral,
+        address asset,
+        address from,
+        address to,
+        uint256 amount,
+        uint256 balanceFromBefore,
+        uint256 balanceToBefore
+    ) 
+        external 
+        view  
+        whenNotPaused 
+    {
+        asset;
+        from;
+        to;
+        amount;
+        balanceFromBefore;
+        balanceToBefore;
+
+        DataTypes.Reserve storage reserve = _reserves[collateral][asset];
+        require(_msgSender() == reserve.fTokenAddress, Errors.LP_CALLER_MUST_BE_AN_FTOKEN);
+
+        // ValidationLogic.validateTransfer(from, reserve); // TODO: implement validation logic
+    }
+
+    function getReserveNormalizedIncome(address collateral, address asset) external view returns (uint256) {
+        return _reserves[collateral][asset].getNormalizedIncome();
+    }
+
+    /**
+    * @dev Returns the normalized variable debt per unit of asset
+    * @param collateral The address of the underlying collateral of the reserve
+    * @param asset The address of the underlying asset of the reserve
+    * @return The reserve normalized variable debt
+    */
+    function getReserveNormalizedVariableDebt(address collateral, address asset) external view returns (uint256) {
+        return _reserves[collateral][asset].getNormalizedDebt();
+    }
+    
 }

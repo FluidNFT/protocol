@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.9;
 
 import { SafeMath } from '@openzeppelin/contracts/utils/math/SafeMath.sol';
-import "../WadRayMath.sol";
+import "../math/WadRayMath.sol";
 
 
 import "hardhat/console.sol";

@@ -1,329 +1,312 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.9;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Pausable.sol";
 import { IDebtToken } from "./interfaces/IDebtToken.sol";
-import { InterestLogic } from "./libraries/InterestLogic.sol";
-import "@openzeppelin/contracts/utils/Context.sol";
-import { SafeMath } from '@openzeppelin/contracts/utils/math/SafeMath.sol';
-import "./WadRayMath.sol";
+import { ILendingPool } from "./interfaces/ILendingPool.sol";
+import {ILendingPoolAddressesProvider} from "./interfaces/ILendingPoolAddressesProvider.sol";
+// import {ILendPoolConfigurator} from "./interfaces/ILendPoolConfigurator.sol";
+import {IIncentivesController} from "./interfaces/IIncentivesController.sol";
+import {IncentivizedERC20} from "./IncentivizedERC20.sol";
+import {WadRayMath} from "./libraries/math/WadRayMath.sol";
+import {Errors} from "./libraries/helpers/Errors.sol";
+
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 import "hardhat/console.sol";
 
-/// @title DebtToken Contract for the NFTlend protocol.
-/// @author Niftrr
+/// @title DebtToken
+/// @author FluidNFT
 /// @notice Allows for the tracking of debt for the purposes of APY calculations.
 /// @dev Debt tokens are non-transferable and so diverge from the ERC20 standard.
-contract DebtToken is Context, ERC20Pausable, IDebtToken, AccessControl, ReentrancyGuard {
-    using SafeMath for uint256;
+contract DebtToken is Initializable, IDebtToken, IncentivizedERC20 {
     using WadRayMath for uint256;
 
-    bytes32 public constant CONFIGURATOR_ROLE = keccak256("CONFIGURATOR_ROLE");
-    bytes32 public constant LENDING_POOL_ROLE = keccak256("LENDING_POOL_ROLE");
+    ILendingPoolAddressesProvider internal _addressProvider;
+    
+    address internal _underlyingCollateral;
+    address internal _underlyingAsset;
 
-    mapping(address => uint256) internal _userAverageRate;
-    mapping(address => uint40) internal _timestamps;
-    uint256 internal _averageRate;
-    uint40 internal _totalSupplyTimestamp;
-
-    /// @notice Emitted when debtTokens are minted.
-    /// @param to The recipient account.
-    /// @param amount The amount of debtTokens to be minted.
-    /// @param newBalance The newBalance of debtTokens.
-    event Mint(address to, uint256 amount, uint256 newBalance);
-
-    /// @notice Emitted when debtTokens are burned.
-    /// @param account The account from which tokens are burned.
-    /// @param amount The amount of debtTokens to be minted.
-    event Burn(address account, uint256 amount);
-
-    constructor(
-        address configurator, 
-        address lendingPool,
-        string memory name, 
-        string memory symbol
-    ) 
-        ERC20(name, symbol) 
-    {
-        _setupRole(CONFIGURATOR_ROLE, configurator);
-        _setupRole(LENDING_POOL_ROLE, lendingPool);
-    }
-
-    modifier onlyConfigurator() {
-        require(hasRole(CONFIGURATOR_ROLE, _msgSender()), "Caller is not the Configurator");
-        _;
-    }
+    mapping(address => mapping(address => uint256)) internal _borrowAllowances;
 
     modifier onlyLendingPool() {
-        require(hasRole(LENDING_POOL_ROLE, _msgSender()), "Caller is not the Lending Pool");
+        require(_msgSender() == address(_getLendingPool()), Errors.CT_CALLER_MUST_BE_LENDING_POOL);
         _;
     }
 
-    struct mintDataLocalVars {
-        uint256 previousSupply;
-        uint256 currentAverageRate;
-        uint256 nextSupply;
-        uint256 newUserAverageRate;
+    // modifier onlyConfigurator() {
+    //     require(_msgSender() == address(_getConfigurator()), Errors.LP_CALLER_NOT_CONFIGURATOR);
+    //     _;
+    // }
+
+    event BorrowAllowanceDelegated(address indexed fromUser, address indexed toUser, address asset, uint256 amount);
+
+    /**
+    * @dev Initializes the debt token.
+    * @param addressProvider The address provider 
+    * @param underlyingAsset The address of the underlying collateral
+    * @param underlyingAsset The address of the underlying asset
+    * @param debtTokenDecimals The decimals of the debtToken, same as the underlying asset's
+    * @param debtTokenName The name of the token
+    * @param debtTokenSymbol The symbol of the token
+    */
+    function initialize(
+    address addressProvider,
+    address underlyingCollateral,
+    address underlyingAsset,
+    uint8 debtTokenDecimals,
+    string memory debtTokenName,
+    string memory debtTokenSymbol
+    ) 
+        public 
+        override 
+        initializer 
+    {
+        __IncentivizedERC20_init(debtTokenName, debtTokenSymbol, debtTokenDecimals);
+
+        _addressProvider = ILendingPoolAddressesProvider(addressProvider);
+        
+        _underlyingCollateral = underlyingCollateral;
+        _underlyingAsset = underlyingAsset;
+
+        emit Initialized(
+            underlyingCollateral,
+            underlyingAsset,
+            address(_getLendingPool()),
+            address(_getIncentivesController()),
+            debtTokenDecimals,
+            debtTokenName,
+            debtTokenSymbol
+        );
     }
 
-    /// @notice Mints an amount of debt tokens to a given account.
-    /// @param to The account.
-    /// @param amount The amount of debt tokens.
-    /// @dev Calls the underlying ERC20 `_mint` function.
-    /// @return Boolean for execution success.
+    /**
+    * @dev Mints debt token to the `user` address
+    * -  Only callable by the LendingPool
+    * @param initiator The address calling borrow
+    * @param amount The amount of debt being minted
+    * @param index The variable debt index of the reserve
+    * @return `true` if the the previous balance of the user is 0
+    **/
     function mint(
-        address to, 
+        address initiator,
+        address onBehalfOf,
         uint256 amount,
-        uint256 rate
+        uint256 index
     ) 
         external 
-        virtual 
         override 
-        nonReentrant
-        // onlyLendingPool TODO: reinstate
-        whenNotPaused 
-        returns (bool)
-    {
-        (, uint256 currentBalance, uint256 balanceIncrease) = _calculateBalanceIncrease(to);
-        mintDataLocalVars memory vars;
-
-        vars.previousSupply = totalSupply();
-        vars.currentAverageRate = _averageRate;
-        vars.nextSupply = vars.previousSupply.add(amount);
-
-        vars.newUserAverageRate = (
-            _userAverageRate[to]
-            .rayMul(currentBalance.wadToRay())
-            .add(amount.wadToRay().rayMul(rate))
-        ).rayDiv(currentBalance.add(amount).wadToRay());
-
-        _userAverageRate[to] = vars.newUserAverageRate;
-        
-        _totalSupplyTimestamp = _timestamps[to] = uint40(block.timestamp);
-
-        // Calculates the updated average rate
-        vars.currentAverageRate = _averageRate = 
-            vars.currentAverageRate
-            .rayMul(vars.previousSupply.wadToRay())
-            .add(rate.rayMul(amount.wadToRay()))
-            .rayDiv(vars.nextSupply.wadToRay());
-
-        _mint(to, amount.add(balanceIncrease));
-
-        emit Mint(to, amount, currentBalance.add(amount));
-
-        return true;
-    }
-
-    /// @notice Burns an amount of debt tokens from a given account.
-    /// @param account The account.
-    /// @param amount The amount of debt tokens.
-    /// @dev Calls the underlying ERC20 `_burn` function.
-    /// @return Boolean for execution success.
-    function burnFrom(
-        address account,
-        uint256 amount
-    ) 
-        public 
-        virtual 
-        override 
-        nonReentrant
-        // onlyLendingPool TODO: uncomment
-        whenNotPaused 
-        returns (bool)
-    {
-        (, uint256 currentBalance, uint256 balanceIncrease) = _calculateBalanceIncrease(account);
-        uint256 previousSupply = totalSupply();
-        uint256 nextSupply = 0;
-        uint256 userAverageRate = _userAverageRate[account];
-        uint256 newAverageRate = 0;
-
-        // User debts and total supply accrue separately with potential accumulation errors
-        // In the case that the last borrower tries to repay more than the available debt supply
-        // set the amount to equal the remaining supply
-        if (previousSupply <= amount) {
-            _averageRate = 0;
-        } else {
-            nextSupply = previousSupply.sub(amount);
-            uint256 firstTerm = _averageRate.rayMul(previousSupply.wadToRay());
-            uint256 secondTerm = userAverageRate.rayMul(amount.wadToRay());
-
-            // Similar to the above, when the last user is repaying it might happen that
-            // user rate * user balance > average rate * total supply. 
-            // In this case we set the average rate to zero.
-            if (secondTerm > firstTerm) {
-                newAverageRate = _averageRate = 0;
-            } else {
-                newAverageRate = _averageRate = firstTerm.sub(secondTerm).rayDiv(nextSupply.wadToRay());
-            }
-        }
-        
-        if (amount == currentBalance) {
-            _userAverageRate[account] = 0;
-            _timestamps[account] = 0;
-        } else{
-            _timestamps[account] = uint40(block.timestamp);
-        }
-
-        if (balanceIncrease > amount) {
-            uint256 mintAmount = balanceIncrease.sub(amount);
-            _mint(account, mintAmount);
-            emit Mint(account, mintAmount, currentBalance.add(mintAmount));
-
-        } else {
-            uint256 burnAmount = amount.sub(balanceIncrease);
-            _burn(account, burnAmount);
-            emit Burn(account, burnAmount); //, currentBalance, balanceIncrease, newAverageRate, nextSupply
-        }
-
-        return true;
-    }
-
-    /// @notice Burn unsupported.
-    /// @dev Overrides the ERC20 `burn` function to make unsupported.
-    function burn(
-        uint256 amount
-    ) 
-        public 
-        virtual 
-        override   
-    {
-        amount;
-        revert('BURN_NOT_SUPPORTED');
-    }
-
-    /// @notice Approve unsupported.
-    /// @dev Overrides the ERC20 `approve` function to make unsupported.
-    /// @return Boolean for execution success.
-    function approve(
-        address spender, 
-        uint256 amount
-    ) 
-        public 
-        virtual 
-        override (ERC20, IERC20)
+        onlyLendingPool 
         returns (bool) 
     {
+        if (initiator != onBehalfOf) {
+            _decreaseBorrowAllowance(onBehalfOf, initiator, amount);
+        }
+        uint256 previousBalance = super.balanceOf(onBehalfOf);
+        // index is expressed in Ray, so:
+        // amount.wadToRay().rayDiv(index).rayToWad() => amount.rayDiv(index)
+        uint256 amountScaled = amount.rayDiv(index);
+        require(amountScaled != 0, Errors.CT_INVALID_MINT_AMOUNT);
+
+        _mint(onBehalfOf, amountScaled);
+
+        emit Transfer(address(0), onBehalfOf, amount);
+        emit Mint(onBehalfOf, amount, index);
+
+        return previousBalance == 0;
+    }
+
+    /**
+    * @dev Burns user variable debt
+    * - Only callable by the LendingPool
+    * @param user The user whose debt is getting burned
+    * @param amount The amount getting burned
+    * @param index The variable debt index of the reserve
+    **/
+    function burn(
+        address user,
+        uint256 amount,
+        uint256 index
+    ) 
+        external 
+        override 
+        onlyLendingPool 
+        returns (bool)
+    {
+        uint256 amountScaled = amount.rayDiv(index);
+        require(amountScaled != 0, Errors.CT_INVALID_BURN_AMOUNT);
+
+        _burn(user, amountScaled);
+
+        emit Transfer(user, address(0), amount);
+        emit Burn(user, amount, index);
+        return true;
+    }
+
+    /**
+    * @dev Calculates the accumulated debt balance of the user
+    * @return The debt balance of the user
+    **/
+    function balanceOf(address user) public view virtual override returns (uint256) {
+        uint256 scaledBalance = super.balanceOf(user);
+
+        if (scaledBalance == 0) {
+            return 0;
+        }
+
+        ILendingPool pool = _getLendingPool();
+
+        return scaledBalance.rayMul(pool.getReserveNormalizedVariableDebt(_underlyingCollateral, _underlyingAsset));
+    }
+
+    /**
+    * @dev Returns the principal debt balance of the user from
+    * @return The debt balance of the user since the last burn/mint action
+    **/
+    function scaledBalanceOf(address user) public view virtual override returns (uint256) {
+        return super.balanceOf(user);
+    }
+
+    /**
+    * @dev Returns the total supply of the variable debt token. Represents the total debt accrued by the users
+    * @return The total supply
+    **/
+    function totalSupply() public view virtual override returns (uint256) {
+        ILendingPool pool = _getLendingPool();
+        return super.totalSupply().rayMul(pool.getReserveNormalizedVariableDebt(_underlyingCollateral, _underlyingAsset));
+    }
+
+    /**
+    * @dev Returns the scaled total supply of the variable debt token. Represents sum(debt/index)
+    * @return the scaled total supply
+    **/
+    function scaledTotalSupply() public view virtual override returns (uint256) {
+        return super.totalSupply();
+    }
+
+    /**
+    * @dev Returns the principal balance of the user and principal total supply.
+    * @param user The address of the user
+    * @return The principal balance of the user
+    * @return The principal total supply
+    **/
+    function getScaledUserBalanceAndSupply(address user) external view override returns (uint256, uint256) {
+        return (super.balanceOf(user), super.totalSupply());
+    }
+
+    /**
+    * @dev Returns the address of the underlying asset of this fToken
+    **/
+    function UNDERLYING_ASSET_ADDRESS() public view returns (address) {
+        return _underlyingAsset;
+    }
+
+    /**
+    * @dev Returns the address of the incentives controller contract
+    **/
+    function getIncentivesController() external view override returns (IIncentivesController) {
+        return _getIncentivesController();
+    }
+
+    /**
+    * @dev Returns the address of the lending pool where this token is used
+    **/
+    function POOL() public view returns (ILendingPool) {
+        return _getLendingPool();
+    }
+
+    function _getIncentivesController() internal view override returns (IIncentivesController) {
+        return IIncentivesController(_addressProvider.getIncentivesController());
+    }
+
+    function _getUnderlyingAssetAddress() internal view override returns (address) {
+        return _underlyingAsset;
+    }
+
+    function _getLendingPool() internal view returns (ILendingPool) {
+        return ILendingPool(_addressProvider.getLendingPool());
+    }
+
+    // function _getConfigurator() internal view returns (IConfigurator) {
+    //     return IConfigurator(_addressProvider.getConfigurator());
+    // }
+
+    /**
+    * @dev Being non transferrable, the debt token does not implement any of the
+    * standard ERC20 functions for transfer and allowance.
+    **/
+    function transfer(address recipient, uint256 amount) public virtual override returns (bool) {
+        recipient;
+        amount;
+        revert("TRANSFER_NOT_SUPPORTED");
+    }
+
+    function allowance(address owner, address spender) public view virtual override returns (uint256) {
+        owner;
+        spender;
+        revert("ALLOWANCE_NOT_SUPPORTED");
+    }
+
+    function approve(address spender, uint256 amount) public virtual override returns (bool) {
         spender;
         amount;
-        revert('APPROVE_NOT_SUPPORTED');
+        revert("APPROVAL_NOT_SUPPORTED");
     }
 
-    /// @notice Transfer unsupported.
-    /// @dev Overrides the ERC20 `transfer` function to make unsupported.
-    function transfer(
-        address to, 
-        address asset, 
-        uint256 amount
-    ) 
-        public 
-        virtual 
-        override 
-    {
-        to;
-        asset;
-        amount;
-        revert('TRANSFER_NOT_SUPPORTED');
-    }
-
-    /// @notice TransferFrom unsupported.
-    /// @dev Overrides the ERC20 `transferFrom` function to make unsupported.
-    /// @return Boolean for execution success.
     function transferFrom(
-        address from, 
-        address to, 
+        address sender,
+        address recipient,
         uint256 amount
-    ) 
-        public 
-        virtual 
-        override (ERC20, IERC20)
-        returns (bool) 
-    {
-        from;
-        to;
+    ) public virtual override returns (bool) {
+        sender;
+        recipient;
         amount;
-        revert('TRANSFER_NOT_SUPPORTED');
+        revert("TRANSFER_NOT_SUPPORTED");
     }
 
-    /// @notice Pauses all contract functions.
-    /// @dev Functions paused via Pausable contract modifier.
-    function pause() public virtual override onlyConfigurator {
-        _pause();
+    function increaseAllowance(address spender, uint256 addedValue) public virtual override returns (bool) {
+        spender;
+        addedValue;
+        revert("ALLOWANCE_NOT_SUPPORTED");
     }
 
-    /// @notice Unpauses all contract functions.
-    /// @dev Functions unpaused via Pausable contract modifier.
-    function unpause() public virtual override onlyConfigurator {
-        _unpause();
+    function decreaseAllowance(address spender, uint256 subtractedValue) public virtual override returns (bool) {
+        spender;
+        subtractedValue;
+        revert("ALLOWANCE_NOT_SUPPORTED");
     }
 
-    function totalSupply() 
-        public 
-        view 
-        override(ERC20, IDebtToken) 
-        returns (uint256) 
-    {
-        return _calculateTotalSupply();
+    /**
+    * @dev delegates borrowing power to a user on the specific debt token
+    * @param delegatee the address receiving the delegated borrowing power
+    * @param amount the maximum amount being delegated. Delegation will still
+    * respect the liquidation constraints (even if delegated, a delegatee cannot
+    * force a delegator borrow to become undercollateralized)
+    **/
+    function approveDelegation(address delegatee, uint256 amount) external override {
+        _borrowAllowances[_msgSender()][delegatee] = amount;
+        emit BorrowAllowanceDelegated(_msgSender(), delegatee, _getUnderlyingAssetAddress(), amount);
     }
 
-    function balanceOf(address account)
-        public
-        view
-        virtual
-        override (ERC20, IERC20)
-        returns (uint256) 
-    {
-        uint256 accountBalance = super.balanceOf(account);
-        uint256 averageRate = _userAverageRate[account];
-        if (accountBalance == 0) {
-            return 0;
-        }
-        uint256 accumulatedInterest = 
-            InterestLogic.calculateLinearInterest(averageRate, _timestamps[account]);
-     
-        return accountBalance.rayMul(accumulatedInterest);
+    /**
+    * @dev returns the borrow allowance of the user
+    * @param fromUser The user to giving allowance
+    * @param toUser The user to give allowance to
+    * @return the current allowance of toUser
+    **/
+    function borrowAllowance(address fromUser, address toUser) external view override returns (uint256) {
+        return _borrowAllowances[fromUser][toUser];
     }
 
-    function _calculateTotalSupply() 
-        internal
-        view
-        virtual
-        returns (uint256)
-    {
-        uint256 principalSupply = super.totalSupply();
-        if (principalSupply == 0) {
-            return 0;
-        }
-        
-        uint256 accumulatedInterest = 
-            InterestLogic.calculateLinearInterest(_averageRate, _totalSupplyTimestamp);
-     
-        return principalSupply.rayMul(accumulatedInterest);
-    }
+    function _decreaseBorrowAllowance(
+        address delegator,
+        address delegatee,
+        uint256 amount
+    ) internal {
+        require(_borrowAllowances[delegator][delegatee] >= amount, Errors.CT_BORROW_ALLOWANCE_NOT_ENOUGH);
 
-    function _calculateBalanceIncrease(address user)
-        internal
-        view
-        returns (
-            uint256,
-            uint256,
-            uint256
-        )
-    {
-        uint256 previousPrincipalBalance = super.balanceOf(user);
+        uint256 newAllowance = _borrowAllowances[delegator][delegatee] - amount;
+        _borrowAllowances[delegator][delegatee] = newAllowance;
 
-        if (previousPrincipalBalance == 0) {
-            return (0, 0, 0);
-        }
-
-        uint256 balanceIncrease = balanceOf(user).sub(previousPrincipalBalance);
-        
-        return (
-            previousPrincipalBalance,
-            previousPrincipalBalance.add(balanceIncrease),
-            balanceIncrease
-        );
+        emit BorrowAllowanceDelegated(delegator, delegatee, _getUnderlyingAssetAddress(), newAllowance);
     }
 }

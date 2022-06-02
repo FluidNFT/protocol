@@ -8,7 +8,7 @@ import { ReserveLogic } from './libraries/logic/ReserveLogic.sol';
 /// @author Niftrr
 /// @notice Separates storage from the Lending Pool contract.
 /// @dev To maintain storage and help limit size of Lending Pool contract.
-contract LendingPoolStorage {
+contract LendingPoolStorageOld {
     using ReserveLogic for DataTypes.Reserve;
 
     address internal _treasuryAddress;
@@ -20,16 +20,10 @@ contract LendingPoolStorage {
     address internal _lendingPoolRepayAddress;
     address internal _lendingPoolWithdrawAddress;
 
-    // collateral + asset => reserve
-    mapping(address =>  mapping(address => DataTypes.Reserve)) internal _reserves;
+    mapping(bytes32 => DataTypes.Reserve) internal _reserves;
     mapping(address => address) internal _underlyingAssets;
     mapping(address => string) internal _pricePairs;
     mapping(address => string) internal _assetNames;
-
-    mapping(uint256 => DataTypes.ReserveConfig) internal _reservesList;
-    uint256 internal _reservesCount;
-
-    uint256 internal _maxNumberOfReserves;
 
     // mapping(address => mapping(address => uint256)) userScaledBalances;
     // mapping(address => mapping(address => uint256)) userFTokenBalances;

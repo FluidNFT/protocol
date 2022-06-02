@@ -1,29 +1,87 @@
-// SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.0;
+// SPDX-License-Identifier: AGPL-3.0
+pragma solidity 0.8.9;
 
-import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+// import {ILendingPoolAddressesProvider} from "./ILendingPoolAddressesProvider.sol";
+import {IIncentivesController} from "./IIncentivesController.sol";
+import {IScaledBalanceToken} from "./IScaledBalanceToken.sol"; 
 
-interface IFToken is IERC20 {
-    function mint(address account, uint256 amount, uint256 liquidityIndex) external returns (bool);
+import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import {IERC20MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/IERC20MetadataUpgradeable.sol";
 
-    function burn(
-        address initiator, 
-        address receiverOfUnderlying,
-        uint256 amount, 
-        uint256 liquidityIndex
+
+interface IFToken is IScaledBalanceToken, IERC20Upgradeable, IERC20MetadataUpgradeable {
+    /**
+    * @dev Emitted when an fToken is initialized
+    * @param underlyingCollateral The address of the underlying collateral
+    * @param underlyingAsset The address of the underlying asset
+    * @param lendingPool The address of the associated lending pool
+    * @param treasury The address of the treasury
+    * @param incentivesController The address of the incentives controller for this fToken
+    **/
+    event Initialized(
+        address indexed underlyingCollateral,
+        address indexed underlyingAsset,
+        address indexed lendingPool,
+        address treasury,
+        address incentivesController
+    );
+
+    /**
+    * @dev Emitted after the mint action
+    * @param from The address performing the mint
+    * @param value The amount being
+    * @param index The new liquidity index of the reserve
+    **/
+    event Mint(address indexed from, uint256 value, uint256 index);
+
+    /**
+    * @dev Emitted after fTokens are burned
+    * @param from The owner of the fTokens, getting them burned
+    * @param target The address that will receive the underlying
+    * @param value The amount being burned
+    * @param index The new liquidity index of the reserve
+    **/
+    event Burn(address indexed from, address indexed target, uint256 value, uint256 index);
+
+    /**
+    * @dev Emitted during the transfer action
+    * @param from The user whose tokens are being transferred
+    * @param to The recipient
+    * @param value The amount being transferred
+    * @param index The new liquidity index of the reserve
+    **/
+    event BalanceTransfer(address indexed from, address indexed to, uint256 value, uint256 index);
+
+    function initialize(
+        address addressProvider,
+        address configurator,
+        address lendingPool,
+        address treasury,
+        address underlyingCollateral,
+        address underlyingAsset,
+        uint8 fTokenDecimals,
+        string calldata fTokenName,
+        string calldata fTokenSymbol
     ) external;
 
-    // function burnFrom(address account, uint256 amount, uint256 liquidityIndex) external returns (bool);
+    function mint(
+        address user,
+        uint256 amount,
+        uint256 index
+    ) external returns (bool);
 
-    function reserveTransfer(address to, uint256 amount) external returns (uint256);
+    function burn(
+        address user,
+        address receiverOfUnderlying,
+        uint256 amount,
+        uint256 index
+    ) external;
 
-    function reserveTransferFrom(address from, uint256 amount) external returns (bool);
+    function mintToTreasury(uint256 amount, uint256 index) external;
 
-    // function transferBalance(address from, address to, uint256 amount) external returns (bool);
+    function transferUnderlyingTo(address user, uint256 amount) external returns (uint256);
 
-    function transferBalance(address from, address to, uint256 amount) external;
+    function getIncentivesController() external view returns (IIncentivesController);
 
-    function pause() external;
-
-    function unpause() external;
+    function UNDERLYING_ASSET_ADDRESS() external view returns (address);
 }

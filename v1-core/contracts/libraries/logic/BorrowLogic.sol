@@ -1,20 +1,22 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.9;
 
-import { DataTypes } from "./DataTypes.sol";
+import { DataTypes } from "../types/DataTypes.sol";
 
-import { IFToken } from "../interfaces/IFToken.sol";
-import { IDebtToken } from "../interfaces/IDebtToken.sol";
-import { ICollateralManager } from "../interfaces/ICollateralManager.sol";
-import { ITokenPriceConsumer } from "../interfaces/ITokenPriceConsumer.sol";
-import { INFTPriceConsumer } from "../interfaces/INFTPriceConsumer.sol";
+import { IFToken } from "../../interfaces/IFToken.sol";
+import { IDebtToken } from "../../interfaces/IDebtToken.sol";
+import { ICollateralManager } from "../../interfaces/ICollateralManager.sol";
+import { ITokenPriceConsumer } from "../../interfaces/ITokenPriceConsumer.sol";
+import { INFTPriceConsumer } from "../../interfaces/INFTPriceConsumer.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import { ReserveLogic } from "./ReserveLogic.sol";
 import { InterestLogic } from "./InterestLogic.sol";
 import { SafeMath } from '@openzeppelin/contracts/utils/math/SafeMath.sol';
-import "../WadRayMath.sol";
+import "../math/WadRayMath.sol";
 
 library BorrowLogic {
+    using SafeERC20 for IERC20;
     using SafeMath for uint256;  
     using WadRayMath for uint256;
     using ReserveLogic for DataTypes.Reserve;
@@ -79,7 +81,7 @@ library BorrowLogic {
 
     function executeBorrow(
         mapping(address => string) storage assetNames,
-        mapping(bytes32 => DataTypes.Reserve) storage reserves,
+        mapping(address => mapping(address => DataTypes.Reserve)) storage reserves,
         DataTypes.ExecuteBorrowParams memory params
     )
         external 
@@ -93,7 +95,7 @@ library BorrowLogic {
 
     function executeBatchBorrow(
         mapping(address => string) storage assetNames,
-        mapping(bytes32 => DataTypes.Reserve) storage reserves,
+        mapping(address => mapping(address => DataTypes.Reserve)) storage reserves,
         DataTypes.ExecuteBatchBorrowParams memory params  
     )
         external
@@ -124,13 +126,13 @@ library BorrowLogic {
 
     function _borrow(
         mapping(address => string) storage assetNames,
-        mapping(bytes32 => DataTypes.Reserve) storage reserves,
+        mapping(address => mapping(address => DataTypes.Reserve)) storage reserves,
         DataTypes.ExecuteBorrowParams memory params
     )
         internal
     {        
         BorrowVars memory vars;
-        DataTypes.Reserve storage reserve = reserves[keccak256(abi.encode(params.collateral, params.asset))];
+        DataTypes.Reserve storage reserve = reserves[params.collateral][params.asset];
         
         // update state MUST BEFORE get borrow amount which is depent on latest borrow index
         reserve.updateState();
@@ -145,6 +147,9 @@ library BorrowLogic {
         );
 
         vars.borrowId = ICollateralManager(params.collateralManagerAddress).getBorrowId(params.collateral, params.tokenId);
+        
+        // TODO: ValidationLogic.validateBorrow();
+        
         if (vars.borrowId == 0) {
             // create borrow
             vars.success = ICollateralManager(params.collateralManagerAddress).deposit(
@@ -155,7 +160,9 @@ library BorrowLogic {
                 params.amount,
                 vars.interestRate,
                 vars.floorPrice,
-                uint40(block.timestamp)); 
+                reserve.variableBorrowIndex,
+                uint40(block.timestamp)
+            ); 
             require(vars.success, "UNSUCCESSFUL_DEPOSIT");
         } else {
             // update borrow
@@ -170,14 +177,23 @@ library BorrowLogic {
                 vars.floorPrice,
                 vars.borrowItem.status,
                 false, // isRepayment
-                params.onBehalfOf
+                params.onBehalfOf,
+                reserve.variableBorrowIndex
             );
             require(vars.success, "UNSUCCESSFUL_BORROW");
         }
 
-        IDebtToken(reserve.debtTokenAddress).mint(params.onBehalfOf, params.amount, vars.interestRate);
+        IDebtToken(reserve.debtTokenAddress).mint(
+            params.initiator, 
+            params.onBehalfOf, 
+            params.amount, 
+            reserve.variableBorrowIndex
+        );
 
-        IFToken(reserve.fTokenAddress).reserveTransfer(params.onBehalfOf, params.amount);
+        // update interest rate according latest borrow amount (utilizaton)
+        reserve.updateInterestRates(params.asset, reserve.fTokenAddress, 0, params.amount);
+
+        IFToken(reserve.fTokenAddress).transferUnderlyingTo(params.onBehalfOf, params.amount);
     }
 
     struct RepayVars {
@@ -193,7 +209,7 @@ library BorrowLogic {
 
     function executeRepay(
         mapping(address => string) storage assetNames,
-        mapping(bytes32 => DataTypes.Reserve) storage reserves,
+        mapping(address => mapping(address => DataTypes.Reserve)) storage reserves,
         DataTypes.ExecuteRepayParams memory params
     )
         external
@@ -203,7 +219,7 @@ library BorrowLogic {
 
     function _repay(
         mapping(address => string) storage assetNames,
-        mapping(bytes32 => DataTypes.Reserve) storage reserves,
+        mapping(address => mapping(address => DataTypes.Reserve)) storage reserves,
         DataTypes.ExecuteRepayParams memory params
     )
         internal
@@ -211,15 +227,21 @@ library BorrowLogic {
     {
         RepayVars memory vars;
         vars.borrowItem = ICollateralManager(params.collateralManagerAddress).getBorrow(params.borrowId);
-        DataTypes.Reserve storage reserve = reserves[keccak256(abi.encode(params.collateral, params.asset))]; 
+        DataTypes.Reserve storage reserve = reserves[params.collateral][params.asset]; 
 
-        vars.accruedBorrowAmount = vars.borrowItem.borrowAmount.rayMul(
-            InterestLogic.calculateLinearInterest(vars.borrowItem.interestRate, vars.borrowItem.timestamp)
-        );
+        // update state MUST BEFORE get borrow amount which is depent on latest borrow index
+        reserve.updateState();
+
+        (,,vars.accruedBorrowAmount) = ICollateralManager(params.collateralManagerAddress).getBorrowAmount(params.borrowId);
+
         vars.partialRepayment = params.amount < vars.accruedBorrowAmount;
         vars.repaymentAmount = vars.partialRepayment ? params.amount : vars.accruedBorrowAmount;
-
-        IFToken(reserve.fTokenAddress).reserveTransferFrom(vars.borrowItem.borrower, vars.repaymentAmount);  
+ 
+        IERC20(vars.borrowItem.erc20Token).safeTransferFrom(
+            params.initiator,
+            reserve.fTokenAddress,
+            vars.repaymentAmount
+        );
 
         if (vars.partialRepayment) {
             vars.floorPrice = INFTPriceConsumer(params.nftPriceConsumerAddress).getFloorPrice(vars.borrowItem.collateral.erc721Token);
@@ -233,22 +255,26 @@ library BorrowLogic {
                 vars.floorPrice,
                 DataTypes.BorrowStatus.Active,
                 true, // isRepayment
-                vars.borrowItem.borrower
+                vars.borrowItem.borrower,
+                reserve.variableBorrowIndex
             );
             require(vars.success, "UNSUCCESSFUL_PARTIAL_REPAY");           
         } else {
             (vars.success, vars.borrowAmount, vars.interestRate) = ICollateralManager(params.collateralManagerAddress).withdraw(
                 params.borrowId, 
                 params.asset, 
-                vars.repaymentAmount //repaymentAmount
+                vars.repaymentAmount, //repaymentAmount
+                reserve.variableBorrowIndex
             );
             require(vars.success, "UNSUCCESSFUL_WITHDRAW");   
         }
 
-        vars.success = IDebtToken(reserve.debtTokenAddress).burnFrom(vars.borrowItem.borrower, vars.repaymentAmount); 
+        vars.success = IDebtToken(reserve.debtTokenAddress).burn(vars.borrowItem.borrower, vars.repaymentAmount, reserve.variableBorrowIndex); 
         require(vars.success, "UNSUCCESSFUL_BURN");
 
+        // update interest rate according latest borrow amount (utilizaton)
+        reserve.updateInterestRates(params.asset, reserve.fTokenAddress, vars.repaymentAmount, 0);
+        
         return (vars.success, vars.repaymentAmount);
-
     }
 }

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.9;
 
 library DataTypes {
@@ -19,6 +19,26 @@ library DataTypes {
     
     struct Reserve {
         ReserveStatus status;
+        ReserveConfig configuration;
+        address fTokenAddress;
+        address debtTokenAddress;
+        address interestRateStrategyAddress;
+        uint128 liquidityIndex;
+        uint128 variableBorrowIndex;
+        uint128 currentLiquidityRate;
+        uint128 currentVariableBorrowRate;
+        uint40 lastUpdateTimestamp;
+        uint16 id;
+    }
+
+    struct ReserveConfig {
+        address collateral;
+        address asset;
+        uint256 reserveFactor;
+    }
+
+    struct ReserveOld {
+        ReserveStatus status;
         address fTokenAddress;
         address debtTokenAddress;
         uint256 liquidityIndex;
@@ -26,7 +46,7 @@ library DataTypes {
         uint256 borrowAmount;
         uint256 borrowRate;
         uint256 normalizedIncome;
-        uint256 latestUpdateTimestamp;
+        uint256 lastUpdateTimestamp;
     }
 
     struct Collateral {

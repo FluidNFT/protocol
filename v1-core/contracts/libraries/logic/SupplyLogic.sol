@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.9;
 
-import { DataTypes } from "./DataTypes.sol";
+import { DataTypes } from "../types/DataTypes.sol";
 
-import { IFToken } from "../interfaces/IFToken.sol";
+import { IFToken } from "../../interfaces/IFToken.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -19,7 +19,8 @@ library SupplyLogic {
     /// @param asset The ERC20, reserve asset address.
     /// @param fTokenAddress The derivative fToken address.
     /// @param debtTokenAddress The derivative debtToken address.
-    event InitReserve(address collateral, address asset, address fTokenAddress, address debtTokenAddress);
+    /// @param reserveFactor The reserve factor
+    event InitReserve(address collateral, address asset, address fTokenAddress, address debtTokenAddress, uint256 reserveFactor);
     
     /// @notice Emitted when an asset deposit is made.
     /// @param initiator The address initiating the deposit. 
@@ -144,23 +145,21 @@ library SupplyLogic {
     );
 
     function executeDeposit(
-        mapping(bytes32 => DataTypes.Reserve) storage reserves,
+        mapping(address => mapping(address => DataTypes.Reserve)) storage reserves,
         DataTypes.ExecuteDepositParams memory params
     )  
         external
     {
         require(params.onBehalfOf != address(0), "INVALID_ONBEHALFOF");
 
-        DataTypes.Reserve storage reserve = reserves[keccak256(abi.encode(params.collateral, params.asset))];
+        DataTypes.Reserve storage reserve = reserves[params.collateral][params.asset];
         address fToken = reserve.fTokenAddress;
         require(fToken != address(0), "INVALID_RESERVE_INDEX");
 
         // TODO: ValidationLogic
 
         reserve.updateState();
-
-        // TODO: Update Interest Rates
-        // reserve.updateInterestRates(params.asset, fToken, params.amount, 0);
+        reserve.updateInterestRates(params.asset, fToken, params.amount, 0);
 
         IERC20(params.asset).transferFrom(params.initiator, fToken, params.amount);
 
@@ -170,7 +169,7 @@ library SupplyLogic {
     }
 
     function executeWithdraw(
-        mapping(bytes32 => DataTypes.Reserve) storage reserves,
+        mapping(address => mapping(address => DataTypes.Reserve)) storage reserves,
         DataTypes.ExecuteWithdrawParams memory params
     )  
         external
@@ -178,7 +177,7 @@ library SupplyLogic {
     {
         require(params.to != address(0), "INVALID_TARGET_ADDRESS");
 
-        DataTypes.Reserve storage reserve = reserves[keccak256(abi.encode(params.collateral, params.asset))];
+        DataTypes.Reserve storage reserve = reserves[params.collateral][params.asset];
         address fToken = reserve.fTokenAddress;
         require(fToken != address(0), "INVALID_RESERVE_INDEX");
 
@@ -193,9 +192,7 @@ library SupplyLogic {
         //ValidationLogic.validateWithdraw(reserve, amountToWithdraw, userBalance);
 
         reserve.updateState();
-
-        // TODO: Update Interest Rates
-        // reserve.updateInterestRates(params.asset, fToken, 0, amountToWithdraw);
+        reserve.updateInterestRates(params.asset, fToken, 0, amountToWithdraw);
     
         IFToken(fToken).burn(params.initiator, params.to, amountToWithdraw, reserve.liquidityIndex);
 

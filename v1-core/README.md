@@ -37,4 +37,4 @@ npx hardhat run --network localhost scripts/deployFork.js
 
 ## Licensing
 
-The primary license for NFTlend V1 Core is the Business Source License 1.1 (`BUSL-1.1`), see [`LICENSE`](./LICENSE)
+The primary license for NFTlend V1 Core is the Business Source License 1.1 (`AGPL-3.0`), see [`LICENSE`](./LICENSE)

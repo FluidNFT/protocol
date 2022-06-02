@@ -1,13 +1,15 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.0;
 
 interface ILendingPool {
     function initReserve(
         address collateral,
         address asset, 
+        address interestRateStrategy,
         address fTokenAddress, 
         address debtTokenAddress,
-        string calldata assetName
+        string calldata assetName,
+        uint256 reserveFactor
     ) 
         external;
 
@@ -86,4 +88,19 @@ interface ILendingPool {
 
     function getAuctionDuration() external returns (uint40);
 
+    function getReservesList() external view returns (address[] memory, address[] memory);
+
+    function finalizeTransfer(
+        address collateral,
+        address asset,
+        address from,
+        address to,
+        uint256 amount,
+        uint256 balanceFromBefore,
+        uint256 balanceToBefore
+    ) external view;
+
+    function getNormalizedIncome(address collateral, address asset) external returns (uint256);
+
+    function getReserveNormalizedVariableDebt(address collateral, address asset) external view returns (uint256);
 }

@@ -1,313 +1,340 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.9;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Pausable.sol";
-import { ILendingPool } from './interfaces/ILendingPool.sol';
-import { IFToken } from './interfaces/IFToken.sol';
-import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/Context.sol";
-import { SafeMath } from '@openzeppelin/contracts/utils/math/SafeMath.sol';
-import "./WadRayMath.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import {SafeERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import {IIncentivesController} from "./interfaces/IIncentivesController.sol";
+import {ILendingPoolAddressesProvider} from "./interfaces/ILendingPoolAddressesProvider.sol";
+import { ILendingPool } from "./interfaces/ILendingPool.sol";
+// import { IConfigurator } from "./interfaces/IConfigurator.sol";
+import { IFToken } from "./interfaces/IFToken.sol";
+import {IncentivizedERC20} from "./IncentivizedERC20.sol";
+import {WadRayMath} from "./libraries/math/WadRayMath.sol";
+import {Errors} from "./libraries/helpers/Errors.sol";
 
 import "hardhat/console.sol";
 
-/// @title FToken Contract for the NFTlend protocol.
-/// @author Niftrr
+/// @title FToken Contract for the FluidNFT protocol.
+/// @author FluidNFT
 /// @notice Allows for the tracking of asset positions for purpose the yield accrual.
 /// @dev FTokens follow the ERC20 standard in that they can be transferred and traded elsewhere.
-contract FToken is Context, ERC20Pausable, IFToken, AccessControl, ReentrancyGuard {
-    using SafeMath for uint256;
+contract FToken is Initializable, IFToken, IncentivizedERC20 {
     using WadRayMath for uint256;
-    using SafeERC20 for IERC20;
-    
-    bytes32 public constant CONFIGURATOR_ROLE = keccak256("CONFIGURATOR_ROLE");
-    bytes32 public constant LENDING_POOL_ROLE = keccak256("LENDING_POOL_ROLE");
+    using SafeERC20Upgradeable for IERC20Upgradeable;
 
-    // uint256 currentAPY; 
     ILendingPool internal _pool;
+    ILendingPoolAddressesProvider internal _addressProvider;
+
+    address internal _configurator;
+    address internal _treasury;
     address internal _underlyingCollateral;
     address internal _underlyingAsset;
-    address internal _treasury;
 
-    /// @notice Emitted when fTokens are minted.
-    /// @param to The recipient account.
-    /// @param amount The present amount of real-world assets that the minted fTokens represent.
-    /// @param amountScaled The amount of fTokens minted.
-    event Mint(address to, uint256 amount, uint256 amountScaled);
+    modifier onlyConfigurator() {
+        require(_msgSender() == _configurator, Errors.LP_CALLER_NOT_CONFIGURATOR);
+        _;
+    }
 
-    /// @notice Emitted when fTokens are minted.
-    /// @param from The sender account.
-    /// @param amount The present amount of real-world assets that the burned fTokens represent.
-    /// @param amountScaled The amount of fTokens burned.
-    event Burn(address from, uint256 amount, uint256 amountScaled);
+    modifier onlyLendingPool() {
+        require(_msgSender() == address(_pool), Errors.CT_CALLER_MUST_BE_LENDING_POOL);
+        _;
+    }
 
-    /// @notice Emitted when fTokens are minted.
-    /// @param from The sender account.
-    /// @param to The recipient account.
-    /// @param amount The present amount of real-world assets that the fTokens represent.
-    /// @param liquidityIndex The liquidityIndex.
-    event BalanceTransfer(address from, address to, uint256 amount, uint256 liquidityIndex);
-
-    /// @notice Emitted when a reserve transfer is sent.
-    /// @param from The sender account.
-    /// @param to The recipient account.
-    /// @param amount The amount of Asset tokens.
-    event ReserveTransfer(address from, address to, uint256 amount);
-
-    constructor(
+    /**
+    * @dev Initializes the fToken
+    * @param addressProvider The address of the addressProvider
+    * @param configurator The address of the configurator
+    * @param lendingPool The address of the lendingPool
+    * @param treasury The address of the FluidNFT treasury, receiving the fees on this fToken
+    * @param underlyingCollateral The address of the underlying collateral of this fToken
+    * @param underlyingAsset The address of the underlying asset of this fToken
+    * @param fTokenDecimals The number of decimals for this fToken
+    * @param fTokenName The name for this fToken
+    * @param fTokenSymbol The symbol for this fToken
+    */
+    function initialize(
+        address addressProvider,
         address configurator, 
         address lendingPool,
         address treasury,
         address underlyingCollateral,
         address underlyingAsset,
-        string memory name, 
-        string memory symbol
-    ) 
-        ERC20(name, symbol) 
+        uint8 fTokenDecimals,
+        string calldata fTokenName, 
+        string calldata fTokenSymbol
+    )
+        external 
+        override
+        initializer 
     {
-        _setupRole(CONFIGURATOR_ROLE, configurator);
-        _setupRole(LENDING_POOL_ROLE, lendingPool);
+        __IncentivizedERC20_init(fTokenName, fTokenSymbol, fTokenDecimals);
+        
+        _addressProvider = ILendingPoolAddressesProvider(addressProvider);
+
         _pool = ILendingPool(lendingPool);
+
+        _configurator = configurator;
         _treasury = treasury;
         _underlyingCollateral = underlyingCollateral;
         _underlyingAsset = underlyingAsset;
+
+        emit Initialized(
+            _underlyingCollateral,
+            _underlyingAsset,
+            _addressProvider.getLendingPool(),
+            _treasury,
+            _addressProvider.getIncentivesController()
+        );
     }
 
-    modifier onlyConfigurator() {
-        require(hasRole(CONFIGURATOR_ROLE, _msgSender()), "Caller is not the Configurator");
-        _;
-    }
-
-    modifier onlyLendingPool() {
-        require(hasRole(LENDING_POOL_ROLE, _msgSender()), "Caller is not the Lending Pool");
-        _;
-    }
-
-    /// @notice Mints an amount of FTokens to a given account.
-    /// @param to The account.
-    /// @param amount The amount of FTokens.
-    /// @dev Calls the underlying ERC20 `_mint` function.
-    /// @return `true` if the previous balance of `to` user address was 0.
-    function mint(
-        address to, 
+    /**
+    * @dev Burns fTokens from `user` and sends the equivalent amount of underlying to `receiverOfUnderlying`
+    * - Only callable by the LendingPool, as extra state updates there need to be managed
+    * @param user The owner of the fTokens, getting them burned
+    * @param receiverOfUnderlying The address that will receive the underlying
+    * @param amount The amount being burned
+    * @param index The new liquidity index of the reserve
+    **/
+    function burn(
+        address user,
+        address receiverOfUnderlying,
         uint256 amount,
-        uint256 liquidityIndex
+        uint256 index
     ) 
         external 
-        virtual 
         override 
-        nonReentrant
-        // onlyLendingPool 
-        whenNotPaused 
-        returns (bool)
+        onlyLendingPool 
     {
-        uint256 previousBalance = super.balanceOf(to);
+        uint256 amountScaled = amount.rayDiv(index);
+        require(amountScaled != 0, Errors.CT_INVALID_BURN_AMOUNT);
+        _burn(user, amountScaled);
 
-        uint256 amountScaled = amount.rayDiv(liquidityIndex);
-        require(amountScaled != 0, "MINT_AMOUNT_ZERO");
-        _mint(to, amountScaled);
-        
-        emit Mint(to, amount, amountScaled);
+        IERC20Upgradeable(_underlyingAsset).safeTransfer(receiverOfUnderlying, amount);
+
+        emit Burn(user, receiverOfUnderlying, amount, index);
+    }
+
+    /**
+    * @dev Mints `amount` fTokens to `user`
+    * - Only callable by the LendingPool, as extra state updates there need to be managed
+    * @param user The address receiving the minted tokens
+    * @param amount The amount of tokens getting minted
+    * @param index The new liquidity index of the reserve
+    * @return `true` if the the previous balance of the user was 0
+    */
+    function mint(
+        address user,
+        uint256 amount,
+        uint256 index
+    ) 
+        external 
+        override 
+        onlyLendingPool 
+        returns (bool) 
+    {
+        uint256 previousBalance = super.balanceOf(user);
+
+        uint256 amountScaled = amount.rayDiv(index);
+        require(amountScaled != 0, Errors.CT_INVALID_MINT_AMOUNT);
+        _mint(user, amountScaled);
+
+        emit Mint(user, amount, index);
+
         return previousBalance == 0;
     }
 
-    /// @notice Burns an amount of FTokens from the _msgSender() account.
-    /// @param initiator The amount of FTokens.
-    /// @param receiverOfUnderlying The receiver of the underlying tokens.
-    /// @param amount The amount of FTokens.
-    /// @param liquidityIndex The liquidity index.
-    /// @dev Calls the underlying ERC20 `_burn` function.
-    function burn(
-        address initiator,
-        address receiverOfUnderlying,
-        uint256 amount,
-        uint256 liquidityIndex
-    ) 
-        public 
-        virtual 
-        override
-        nonReentrant 
-        // onlyLendingPool 
-        whenNotPaused  
-    {
-        uint256 amountScaled = amount.rayDiv(liquidityIndex);
-        require(amountScaled != 0, "BURN_AMOUNT_ZERO");
+    /**
+    * @dev Mints fTokens to the reserve treasury
+    * - Only callable by the LendingPool
+    * @param amount The amount of tokens getting minted
+    * @param index The new liquidity index of the reserve
+    */
+    function mintToTreasury(uint256 amount, uint256 index) external override onlyLendingPool {
+        if (amount == 0) {
+            return;
+        }
 
-        _burn(initiator, amountScaled);
+        address treasury = _treasury;
 
-        IERC20(_underlyingAsset).safeTransfer(receiverOfUnderlying, amount);
+        // Compared to the normal mint, we won't check for rounding errors.
+        // The amount to mint can easily be very small since it is a fraction of the interest accrued.
+        // In this case, the treasury will experience a (very small) loss, but this avoids causing
+        // potentially valid transactions to fail.
+        _mint(treasury, amount.rayDiv(index));
 
-        emit Burn(initiator, amount, amountScaled);
+        emit Transfer(address(0), treasury, amount);
+        emit Mint(treasury, amount, index);
     }
 
-    // /// @notice Burns an amount of FTokens from a given account.
-    // /// @param account The account.
-    // /// @param amount The amount of debt tokens.
-    // /// @dev Calls the underlying ERC20 `_burn` function.
-    // /// @return Boolean for execution success.
-    // function burnFrom(
-    //     address account, 
-    //     uint256 amount,
-    //     uint256 liquidityIndex
-    // ) 
-    //     external 
-    //     virtual 
-    //     override 
-    //     nonReentrant
-    //     // onlyLendingPool 
-    //     whenNotPaused 
-    //     returns (bool)
-    // {
-    //     uint256 amountScaled = amount.rayDiv(liquidityIndex);
-    //     require(amountScaled != 0, "BURN_FROM_AMOUNT_ZERO");
-    //     uint256 currentAllowance = allowance(account, _msgSender());
-    //     require(currentAllowance >= amountScaled, "ERC20: burn amount exceeds allowance");
-    //     unchecked {
-    //         _approve(account, _msgSender(), currentAllowance - amountScaled);
-    //     }
-    //     _burn(account, amountScaled);
-    //     emit Burn(account, amount, amountScaled);
-    //     return true;
-    // }
+    /**
+    * @dev Calculates the balance of the user: principal balance + interest generated by the principal
+    * @param user The user whose balance is calculated
+    * @return The balance of the user
+    **/
+    function balanceOf(address user) public view override returns (uint256) {
+        return super.balanceOf(user).rayMul(_pool.getReserveNormalizedIncome(_underlyingCollateral, _underlyingAsset));
+    }   
 
-    /// @notice Transfer of Asset tokens from the reserve.
-    /// @param to The recipient account.
-    /// @param amount The amount of Asset tokens.
-    /// @dev Asset tokens reclaimed from the FToken reserve.
-    /// @return The amount transferred.
-    function reserveTransfer(
-        address to, 
-        uint256 amount
-    ) 
-        external 
-        virtual 
-        override 
-        nonReentrant
-        // onlyLendingPool 
-        whenNotPaused
-        returns (uint256)
-    {
-        require(IERC20(_underlyingAsset).balanceOf(address(this)) >= amount, "Insufficient supply of asset token in reserve.");
-        IERC20(_underlyingAsset).safeTransfer(to, amount);
-        return amount;
+
+    /**
+    * @dev Returns the scaled balance of the user. The scaled balance is the sum of all the
+    * updated stored balance divided by the reserve's liquidity index at the moment of the update
+    * @param user The user whose balance is calculated
+    * @return The scaled balance of the user
+    **/
+    function scaledBalanceOf(address user) external view override returns (uint256) {
+        return super.balanceOf(user);
     }
 
-    /// @notice Transfers Asset tokens to the reserve.
-    /// @param from The sender account.
-    /// @param amount The amount of Asset tokens.
-    /// @dev Asset tokens deposited to the FToken reserve.
-    /// @return Boolean for execution success.
-    function reserveTransferFrom(
-        address from, 
-        uint256 amount
-    ) 
-        external 
-        virtual 
-        override 
-        nonReentrant
-        // onlyLendingPool 
-        whenNotPaused
-        returns (bool)
-    {
-        bool success;
-        require(IERC20(_underlyingAsset).balanceOf(from) >= amount, "Insufficient user asset token balance.");
-        success = IERC20(_underlyingAsset).transferFrom(from, address(this), amount);
-        require(success, "UNSUCCESSFUL_TRANSFER");
-        emit ReserveTransfer(from, address(this), amount);
-        return success;
+    /**
+    * @dev Returns the scaled balance of the user and the scaled total supply.
+    * @param user The address of the user
+    * @return The scaled balance of the user
+    * @return The scaled balance and the scaled total supply
+    **/
+    function getScaledUserBalanceAndSupply(address user) external view override returns (uint256, uint256) {
+        return (super.balanceOf(user), super.totalSupply());
     }
+    
+    /**
+    * @dev Calculates the total supply of the specific fToken
+    * Since the balance of every single user increases over time, the total supply
+    * does that too.
+    * @return the current total supply
+    **/
+    function totalSupply() public view override returns (uint256) {
+        uint256 currentSupplyScaled = super.totalSupply();
 
-    function balanceOf(
-        address account
-    )
-        public
-        view
-        virtual
-        override(ERC20, IERC20)
-        returns (uint256)
-    {
-        // address asset = ILendingPool(_lendingPool).getUnderlyingAsset(address(this));
-        // uint256 liquidityIndex = ILendingPool(_lendingPool).getLiquidityIndex(asset);
-        // uint256 liquidityIndex = WadRayMath.ray();  
-        // return super.balanceOf(account).rayMul(liquidityIndex);
-        // address asset = ILendingPool(_lendingPool).getUnderlyingAsset(address(this));
-        return super.balanceOf(account).rayMul(_pool.getReserveNormalizedIncome(_underlyingCollateral, _underlyingAsset));
-    }
-
-    function scaledBalanceOf(
-        address account
-    ) 
-        public
-        view
-        returns (uint256)
-    {
-        return super.balanceOf(account);
-    }
-
-    function totalSupply() 
-        public 
-        view
-        virtual
-        override(ERC20, IERC20)
-        returns (uint256)
-    {
-        uint256 currentScaledTotalSupply = super.totalSupply();
-        if (currentScaledTotalSupply == 0) {
+        if (currentSupplyScaled == 0) {
             return 0;
         }
-        // address asset = ILendingPool(_lendingPool).getUnderlyingAsset(address(this));
-        // uint256 liquidityIndex = ILendingPool(_lendingPool).getLiquidityIndex(asset);
-        uint256 liquidityIndex = WadRayMath.ray();  
-        return currentScaledTotalSupply.rayMul(liquidityIndex);
+
+        return currentSupplyScaled.rayMul(_pool.getReserveNormalizedIncome(_underlyingCollateral, _underlyingAsset));
     }
 
-    function scaledTotalSupply()
-        public
-        view
-        returns (uint256)
-    {
+    /**
+    * @dev Returns the scaled total supply of the variable debt token. Represents sum(debt/index)
+    * @return the scaled total supply
+    **/
+    function scaledTotalSupply() public view virtual override returns (uint256) {
         return super.totalSupply();
     }
 
+    /**
+    * @dev Returns the address of the FluidNFT treasury, receiving the fees on this fToken
+    **/
+    function RESERVE_TREASURY_ADDRESS() public view returns (address) {
+    return _treasury;
+    }
 
+    /**
+    * @dev Returns the address of the underlyingCollateral of this fToken
+    **/
+    function UNDERLYING_COLLATERAL_ADDRESS() public view returns (address) {
+    return _underlyingCollateral;
+    }
+
+    /**
+    * @dev Returns the address of the underlyingAsset of this fToken
+    **/
+    function UNDERLYING_ASSET_ADDRESS() public view override returns (address) {
+    return _underlyingAsset;
+    }
+
+    /**
+    * @dev Returns the lending pool where this fToken is used
+    **/
+    function POOL() public view returns (ILendingPool) {
+        return _pool;
+    }
+
+    /**
+    * @dev For internal usage in the logic of the parent contract IncentivizedERC20
+    **/
+    function _getIncentivesController() internal view override returns (IIncentivesController) {
+        return IIncentivesController(_addressProvider.getIncentivesController()); 
+    }
+
+    function _getUnderlyingCollateralAddress() internal view returns (address) {
+        return _underlyingCollateral;
+    }  
+
+    function _getUnderlyingAssetAddress() internal view override returns (address) {
+        return _underlyingAsset;
+    }  
+
+    /**
+    * @dev Returns the address of the incentives controller contract
+    **/
+    function getIncentivesController() external view override returns (IIncentivesController) {
+        return _getIncentivesController();
+    }
+
+    /**
+    * @dev Transfers the underlying asset to `target`. Used by the LendingPool to transfer
+    * assets in borrow(), withdraw() and flashLoan()
+    * @param target The recipient of the fTokens
+    * @param amount The amount getting transferred
+    * @return The amount transferred
+    **/
+    function transferUnderlyingTo(address target, uint256 amount) 
+        external 
+        override 
+        onlyLendingPool 
+        returns (uint256) 
+    {
+        IERC20Upgradeable(_underlyingAsset).safeTransfer(target, amount);
+        return amount;
+    }
+
+    function _getLendingPool() internal view returns (ILendingPool) {
+        return ILendingPool(_addressProvider.getLendingPool());
+    }
+
+    // function _getConfigurator() internal view returns (IConfigurator) {
+    //     return IConfigurator(_addressProvider.getConfigurator());
+    // }
+
+    /**
+    * @dev Transfers the fTokens between two users. Validates the transfer
+    * (ie checks for valid HF after the transfer) if required
+    * @param from The source address
+    * @param to The destination address
+    * @param amount The amount getting transferred
+    * @param validate `true` if the transfer needs to be validated
+    **/
     function _transfer(
         address from,
         address to,
-        uint256 amount
-    )
-        internal
-        virtual
-        override(ERC20)
+        uint256 amount,
+        bool validate
+    ) internal {
+        uint256 index = _pool.getReserveNormalizedIncome(_underlyingCollateral, _underlyingAsset);
+
+        uint256 fromBalanceBefore = super.balanceOf(from).rayMul(index);
+        uint256 toBalanceBefore = super.balanceOf(to).rayMul(index);
+
+        super._transfer(from, to, amount.rayDiv(index));
+
+        if (validate) {
+            _pool.finalizeTransfer(_underlyingCollateral, _underlyingAsset, from, to, amount, fromBalanceBefore, toBalanceBefore);
+        }
+
+        emit BalanceTransfer(from, to, amount, index);
+    }
+
+    /**
+    * @dev Overrides the parent _transfer to force validated transfer() and transferFrom()
+    * @param from The source address
+    * @param to The destination address
+    * @param amount The amount getting transferred
+    **/
+    function _transfer(address from, address to, uint256 amount) 
+        internal 
+        override 
     {
-        // address asset = ILendingPool(_lendingPool).getUnderlyingAsset(address(this));
-        uint256 liquidityIndex = _pool.getLiquidityIndex(_underlyingCollateral, _underlyingAsset);
-        // uint256 liquidityIndex = WadRayMath.ray().mul(8); // as per test input
-
-        super._transfer(from, to, amount.rayDiv(liquidityIndex));
-
-        emit BalanceTransfer(from, to, amount, liquidityIndex);
+        _transfer(from, to, amount, true);
     }
 
-    function transferBalance(
-        address from, 
-        address to,
-        uint256 amount
-    ) public override {
-        _transfer(from, to, amount);
-    }
-
-    /// @notice Pauses all contract functions.
-    /// @dev Functions paused via Pausable contract modifier.
-    function pause() external override onlyConfigurator {
-        _pause();
-    }
-
-    /// @notice Unpauses all contract functions.
-    /// @dev Functions unpaused via Pausable contract modifier.
-    function unpause() external override onlyConfigurator{
-        _unpause();
-    }
 }

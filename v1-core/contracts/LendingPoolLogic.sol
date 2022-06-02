@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.9;
 
 import { LendingPoolStorage } from './LendingPoolStorage.sol';
@@ -10,9 +10,9 @@ import { ITokenPriceConsumer } from "./interfaces/ITokenPriceConsumer.sol";
 import { MockOracle } from "./mocks/Oracle.sol";
 import { NFTPriceConsumer } from "./NFTPriceConsumer.sol";
 import { SafeMath } from '@openzeppelin/contracts/utils/math/SafeMath.sol';
-import { DataTypes } from "./libraries/DataTypes.sol";
-import { ReserveLogic } from "./libraries/ReserveLogic.sol";
-import "./WadRayMath.sol";
+import { DataTypes } from "./libraries/types/DataTypes.sol";
+import { ReserveLogic } from "./libraries/logic/ReserveLogic.sol";
+import "./libraries/math/WadRayMath.sol";
 import "hardhat/console.sol";
 
 /// @title Lending Pool Logic contract.
@@ -79,7 +79,7 @@ contract LendingPoolLogic is LendingPoolStorage {
         view
         returns (uint256)
     {
-        DataTypes.Reserve memory reserve = _reserves[keccak256(abi.encode(collateral, asset))]; 
+        DataTypes.Reserve memory reserve = _reserves[collateral][asset]; 
         return reserve.liquidityIndex;
     }
 
@@ -93,18 +93,18 @@ contract LendingPoolLogic is LendingPoolStorage {
         return _underlyingAssets[fToken];
     }
 
-    function getReserveNormalizedIncome(
-        address collateral,
-        address asset
-    )
-        public
-        view
-        returns (uint256)
-    {
-        DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
-        (,uint256 normalizedIncome) = ReserveLogic.getNormalizedIncome(reserve);
-        return normalizedIncome;
-    }
+    // function getReserveNormalizedIncome(
+    //     address collateral,
+    //     address asset
+    // )
+    //     public
+    //     view
+    //     returns (uint256)
+    // {
+    //     // DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
+    //     // (,uint256 normalizedIncome) = ReserveLogic.getNormalizedIncome(reserve);
+    //     // return normalizedIncome;
+    // }
     function _updateLiquidityIndex(
         address collateral,
         address asset
@@ -112,8 +112,9 @@ contract LendingPoolLogic is LendingPoolStorage {
         public // internal TODO: revert to internal
         returns (uint256)
     {
-        DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
-        (,reserve.liquidityIndex) = reserve.getNormalizedIncome();
-        return reserve.liquidityIndex;
+        // DataTypes.Reserve storage reserve = _reserves[keccak256(abi.encode(collateral, asset))];
+        // (,reserve.liquidityIndex) = reserve.getNormalizedIncome();
+        // return reserve.liquidityIndex;
+        // TODO: uncomment if required
     }
 }
