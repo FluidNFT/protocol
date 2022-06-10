@@ -274,11 +274,13 @@ contract CollateralManager is Context, IERC721Receiver, AccessControl, Pausable,
         if (isWhitelisted) {
             whitelist.push(erc721Token);
         } else {
-            for (uint i = 0; i < whitelist.length-1; i++){
+            address[] memory _whitelist = whitelist;
+            for (uint i; i < _whitelist.length-1;){
                 if (whitelist[i] == erc721Token) {
                     whitelist[i] = whitelist[whitelist.length-1];
                     whitelist.pop();
                 }
+                unchecked { ++i; }
             }
         }
 

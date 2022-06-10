@@ -36,7 +36,8 @@ contract NFTPriceConsumer is AccessControl {
         public 
         onlyConfigurator 
     {
-        if (lastIndex[_nftProject] < window) {
+        uint256 _window = window;
+        if (lastIndex[_nftProject] < _window) {
             floorPrices[_nftProject][lastIndex[_nftProject]] = _floorPrice;
         } else {
             initiated[_nftProject] = true;
@@ -46,11 +47,13 @@ contract NFTPriceConsumer is AccessControl {
         lastIndex[_nftProject] += 1;
 
         uint256 sum;
-        for (uint256 i = 0; i < window; i++) {
+        
+        for (uint256 i; i < _window;) {
             sum += floorPrices[_nftProject][i];
+            unchecked { ++i; }
         }
         if (initiated[_nftProject]) {
-            floorPrice[_nftProject] = sum.div(window);
+            floorPrice[_nftProject] = sum.div(_window);
         } else {
             floorPrice[_nftProject] = sum.div(lastIndex[_nftProject]);
         }
