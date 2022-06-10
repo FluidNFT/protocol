@@ -55,7 +55,7 @@ library ReserveLogic {
         vars.totalLiquidity = IFToken(reserve.fTokenAddress).totalSupply();
         
         vars.utilizationRate = 0;
-        if (vars.totalLiquidity > 0) {
+        if (vars.totalLiquidity != 0) {
             vars.utilizationRate = vars.totalDebt.wadToRay().rayDiv(vars.totalLiquidity.wadToRay());
         }
         return vars.utilizationRate;

@@ -120,7 +120,7 @@ contract LendingPoolRepay is Context, LendingPoolStorage, ILendingPoolRepay, Pau
         require(vars.success, "UNSUCCESSFUL_BURN");
 
         // Update reserve borrow numbers - for use in APR calculation
-        if (reserve.borrowAmount.sub(vars.borrowAmount) > 0) {
+        if (reserve.borrowAmount.sub(vars.borrowAmount) != 0) {
             reserve.borrowRate = WadRayMath.rayDiv(
                 WadRayMath.rayMul(
                     WadRayMath.wadToRay(reserve.borrowAmount), reserve.borrowRate

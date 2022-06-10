@@ -25,7 +25,7 @@ contract LendingPoolCore is LendingPoolStorage, LendingPoolEvents {
     //     DataTypes.Reserve memory reserve = _reserves[asset];
     //     uint256 fTokenSupply = IFToken(reserve.fTokenAddress).totalSupply();
     //     uint256 utilizationRate = 0;
-    //     if (fTokenSupply > 0) {
+    //     if (fTokenSupply != 0) {
     //         utilizationRate = WadRayMath.wadToRay(
     //             WadRayMath.wadDiv(
     //                 IDebtToken(reserve.debtTokenAddress).getTotalSupply(), fTokenSupply

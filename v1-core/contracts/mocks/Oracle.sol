@@ -17,10 +17,10 @@ contract MockOracle {
     /// @return Returns the floorPrice of the NFT project in terms of the asset provided. 
     function getMockFloorPrice(address collateral, address asset) public view returns (uint256) {
         uint256 floorPriceEth = mockEthFloorPrices[collateral];
-        require(floorPriceEth > 0, "UNSET_MOCK_FLOORPRICE"); 
+        require(floorPriceEth != 0, "UNSET_MOCK_FLOORPRICE"); 
 
         // uint256 ethTokenPrice = ethTokenPrices[asset]; // TODO: create a new / hybrid function for other ccys
-        // require(ethTokenPrice > 0, "UNSET_MOCK_TOKENPRICE"); 
+        // require(ethTokenPrice != 0, "UNSET_MOCK_TOKENPRICE"); 
 
         // uint256 ethTokenPriceDecimal = 1000000000000000000; // 18d TODO: connect Token Price Oracle 
         // uint256 floorPrice = floorPriceEth.mul(ethTokenPrice).div(ethTokenPriceDecimal);

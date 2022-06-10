@@ -326,7 +326,7 @@ contract CollateralManager is Context, IERC721Receiver, AccessControl, Pausable,
         uint256 borrowBalanceAmount;
         uint256 borrowId = nftBorrows[keccak256(abi.encode(collateral, tokenId))];
         DataTypes.Borrow memory borrowItem = borrows[borrowId];
-        if (borrowItem.borrowAmount > 0) {
+        if (borrowItem.borrowAmount != 0) {
             borrowBalanceAmount = borrowItem.borrowAmount
             .add(
                 (borrowItem.borrowAmount)
@@ -448,7 +448,7 @@ contract CollateralManager is Context, IERC721Receiver, AccessControl, Pausable,
     {
         uint256 liquidationThreshold = getLiquidationThreshold(erc721Token);
         uint256 maxAmount = collateralFloorPrice.mul(100).div(liquidationThreshold); // TODO: use global var for liquidationThreshold
-        require(borrowAmount <= maxAmount, "UNDERCOLLATERALIZED"); 
+        require(borrowAmount < maxAmount + 1, "UNDERCOLLATERALIZED"); 
 
         uint256 liquidationPrice = borrowAmount.mul(liquidationThreshold).div(100);
         return liquidationPrice;

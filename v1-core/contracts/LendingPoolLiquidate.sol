@@ -125,7 +125,7 @@ contract LendingPoolLiquidate is Context, LendingPoolStorage, LendingPoolLogic, 
         require(vars.success, "UNSUCCESSFUL_RETRIEVE");
    
         // Update reserve borrow numbers - for use in APR calculation
-        if (reserve.borrowAmount.sub(borrowItem.borrowAmount) > 0) {
+        if (reserve.borrowAmount.sub(borrowItem.borrowAmount) != 0) {
             reserve.borrowRate = WadRayMath.rayDiv(
                 WadRayMath.rayMul(
                     WadRayMath.wadToRay(reserve.borrowAmount), reserve.borrowRate
