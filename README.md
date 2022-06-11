@@ -1,6 +1,6 @@
 # [FluidNFT](https://fluidnft.org/)
 
-Community Banking for NFTs - to unlock liquidity and a new wave of DeFi 🌊🖼️✨ 
+**Community Banking for NFTs** - to unlock liquidity and a new wave of DeFi 🌊🖼️✨ 
 
 Empowering NFT collectors, creators and the missions they support.
 
