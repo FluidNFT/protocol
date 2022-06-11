@@ -1,8 +1,6 @@
 # [FluidNFT](https://fluidnft.org/)
 
-Community Banking and Asset Management for NFTs 🌊🔥🖼️✨
-
-At FluidNFT we are building non-custodial community banking and asset management for NFTs. Get instant liquidity, earn royalties, receive airdrops, stake, sell - **you're in control**.
+Community Banking for NFTs - to unlock liquidity and a new wave of DeFi 🌊🖼️✨ Empowering NFT collectors, creators and the missions they support.
 
 ## Video demo
 
