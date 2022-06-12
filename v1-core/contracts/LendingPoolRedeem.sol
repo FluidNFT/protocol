@@ -97,7 +97,7 @@ contract LendingPoolRedeem is Context, LendingPoolStorage, LendingPoolLogic, ILe
         );
         require(redeemAmount > vars.borrowItem.auction.liquidationFee, "INSUFFICIENT_AMOUNT"); 
         vars.repaymentAmount = redeemAmount - vars.borrowItem.auction.liquidationFee;
-        require(vars.repaymentAmount <= vars.borrowBalanceAmount , "OVERPAYMENT"); 
+        require(vars.repaymentAmount < vars.borrowBalanceAmount + 1, "OVERPAYMENT"); 
 
         vars.floorPrice = INFTPriceConsumer(_nftPriceConsumerAddress).getFloorPrice(vars.borrowItem.collateral.erc721Token);
         if (keccak256(abi.encodePacked(_assetNames[asset])) != keccak256(abi.encodePacked("WETH"))) {
@@ -146,7 +146,7 @@ contract LendingPoolRedeem is Context, LendingPoolStorage, LendingPoolLogic, ILe
         } 
 
         // Update reserve borrow numbers - for use in APR calculation
-        if (reserve.borrowAmount.sub(vars.borrowAmount) > 0) {
+        if (reserve.borrowAmount.sub(vars.borrowAmount) != 0) {
             reserve.borrowRate = WadRayMath.rayDiv(
                 WadRayMath.rayMul(
                     WadRayMath.wadToRay(reserve.borrowAmount), reserve.borrowRate

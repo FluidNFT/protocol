@@ -86,7 +86,7 @@ contract LendingPoolBid is Context, LendingPoolStorage, LendingPoolLogic, ILendi
         if (keccak256(abi.encodePacked(_assetNames[asset])) != keccak256(abi.encodePacked("WETH"))) {
             vars.floorPrice = vars.floorPrice.mul(ITokenPriceConsumer(_tokenPriceConsumerAddress).getEthPrice(asset));
         }
-        require(vars.floorPrice <= borrowItem.liquidationPrice, "BORROW_NOT_IN_DEFAULT");
+        require(vars.floorPrice < borrowItem.liquidationPrice + 1, "BORROW_NOT_IN_DEFAULT");
 
         vars.liquidationFee = borrowItem.borrowAmount.rayMul(_liquidationFee);
         vars.borrowBalanceAmount = borrowItem.borrowAmount

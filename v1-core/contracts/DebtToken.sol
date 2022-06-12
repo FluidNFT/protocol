@@ -143,7 +143,7 @@ contract DebtToken is Context, ERC20Pausable, IDebtToken, AccessControl, Reentra
         // User debts and total supply accrue separately with potential accumulation errors
         // In the case that the last borrower tries to repay more than the available debt supply
         // set the amount to equal the remaining supply
-        if (previousSupply <= amount) {
+        if (previousSupply < amount + 1) {
             _averageRate = 0;
         } else {
             nextSupply = previousSupply.sub(amount);
