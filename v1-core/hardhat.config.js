@@ -44,8 +44,8 @@ module.exports = {
       // networkCheckTimeout: 1000000,
       // timeoutBlocks: 30000,
     },
-    rinkby: {
-      url: process.env.RINKBY_URL || "",
+    rinkeby: {
+      url: process.env.RINKEBY_URL || "",
       accounts:
         [
           process.env.PRIVATE_KEY_ACC0,
@@ -56,8 +56,11 @@ module.exports = {
           process.env.PRIVATE_KEY_TREASURY,
         ],
       gas: 2100000,
-      gasPrice: 8000000000,
+      gasPrice: 8000000000, // 8gwei
       saveDeploymentes: true,
+      timeout: 10000000,
+      networkCheckTimeout: 1000000,
+      timeoutBlocks: 30000,
     },
     hardhat: {
       // forking: {
