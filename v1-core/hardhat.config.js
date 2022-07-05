@@ -31,11 +31,11 @@ module.exports = {
       accounts:
         [
           process.env.PRIVATE_KEY_ACC0, //Ropsten deploy 2
-          process.env.PRIVATE_KEY_ACC1,
-          process.env.PRIVATE_KEY_ACC2,
-          process.env.PRIVATE_KEY_EMERGENCY_ADMIN,
-          process.env.PRIVATE_KEY_ADMIN,
-          process.env.PRIVATE_KEY_TREASURY,
+          // process.env.PRIVATE_KEY_ACC1,
+          // process.env.PRIVATE_KEY_ACC2,
+          // process.env.PRIVATE_KEY_EMERGENCY_ADMIN,
+          // process.env.PRIVATE_KEY_ADMIN,
+          // process.env.PRIVATE_KEY_TREASURY,
         ],
       gas: 2100000,
       gasPrice: 8000000000,
@@ -49,11 +49,11 @@ module.exports = {
       accounts:
         [
           process.env.PRIVATE_KEY_ACC0,
-          process.env.PRIVATE_KEY_ACC1,
-          process.env.PRIVATE_KEY_ACC2,
-          process.env.PRIVATE_KEY_EMERGENCY_ADMIN,
-          process.env.PRIVATE_KEY_ADMIN,
-          process.env.PRIVATE_KEY_TREASURY,
+          // process.env.PRIVATE_KEY_ACC1,
+          // process.env.PRIVATE_KEY_ACC2,
+          // process.env.PRIVATE_KEY_EMERGENCY_ADMIN,
+          // process.env.PRIVATE_KEY_ADMIN,
+          // process.env.PRIVATE_KEY_TREASURY,
         ],
       gas: 2100000,
       gasPrice: 8000000000, // 8gwei
