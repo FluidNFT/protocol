@@ -1,7 +1,7 @@
 [default]
-src = 'contracts'
+contracts = 'contracts'
 test = 'test'
 out = 'artifacts/contracts'
-libs = ['lib']
+lib = ['lib']
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config

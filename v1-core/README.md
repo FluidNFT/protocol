@@ -40,7 +40,7 @@ npx hardhat run --network localhost scripts/deployFork.js
 The primary license for NFTlend V1 Core is the Business Source License 1.1 (`AGPL-3.0`), see [`LICENSE`](./LICENSE)
 
 
-## Running Foundry within Hardhat
+## Foundry integration within Hardhat
 
 Get Foundry for Linux/Mac
 
@@ -58,9 +58,11 @@ Docker
 
     docker pull ghcr.io/foundry-rs/foundry:latest
 
-Creating new Foundry repo
+Creating new Foundry repo 
 
     forge init myrepo
+
+TODO or simply add different files to existing Hardhat folders in following order
 
 Test Foundry
 
@@ -89,3 +91,4 @@ cd into newly create repo and in Foundry settings file foundry.toml following li
 Install Forge Standard Library
 
     forge install foundry-rs/forge-std
+
