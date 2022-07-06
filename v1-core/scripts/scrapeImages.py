@@ -4,7 +4,7 @@ import json
 url = "https://gateway.pinata.cloud/ipfs/QmeSjSinHpPnmXmspMjwiXyN6zS4E9zccariGR3jxcaWtq/"
 res = {}
 
-for tokenId in range(0,100):
+for tokenId in range(0,120):
     try:
         scrapeUrl = f'{url}/{tokenId}'
         r = requests.get(scrapeUrl)
