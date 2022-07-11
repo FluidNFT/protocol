@@ -40,23 +40,21 @@ npx hardhat run --network localhost scripts/deployFork.js
 The primary license for NFTlend V1 Core is the Business Source License 1.1 (`AGPL-3.0`), see [`LICENSE`](./LICENSE)
 
 
-## Foundry integration within Hardhat
+## Foundry integration with Hardhat
 
 Get Foundry for Linux/Mac
 
     curl -L https://foundry.paradigm.xyz | bash;
+
+
+Get Foundry for Windows
+
+   cargo install --git https://github.com/foundry-rs/foundry --bins --locked
     
 To install Foundry run the following command:
 
     foundryup
 
-Get Foundry for Windows
-
-   cargo install --git https://github.com/foundry-rs/foundry --bins --locked
-
-Docker
-
-    docker pull ghcr.io/foundry-rs/foundry:latest
 
 Create foundry.toml file in the root of the project and pass following:
 
@@ -67,11 +65,11 @@ Create foundry.toml file in the root of the project and pass following:
     lib = ['lib']
     # See more config options https://github.com/foundry-rs/foundry/tree/master/config
 
-Install Forge Standard Library
+Forge is a command-line tool that ships with Foundry. Forge tests, builds, and deploys your smart contracts. Install Forge Standard Library. 
 
     forge install foundry-rs/forge-std
 
-Scripts in ./scripts folder should be annotated on following way MyContract.s.sol:
+Scripts in ./scripts folder should be annotated as following MyContract.s.sol:
 
     // SPDX-License-Identifier: UNLICENSED
     pragma solidity ^0.8.13;
@@ -105,6 +103,10 @@ Now lets test Foundry
 
     forge build
     forge test
+
+or if we want to test only one contract
+    
+        forge test --match-contract ComplicatedContractTest
 
 If everything goes well you should get something like:
 
