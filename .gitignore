@@ -9,3 +9,6 @@ v1-core-truffle/
 .interface-env
 dist/
 .parcel-cache/
+v1-core/lib/
+lib/
+
