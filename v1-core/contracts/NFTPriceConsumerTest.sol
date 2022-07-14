@@ -3,9 +3,9 @@ pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import { SafeMath } from "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "./Trustus.sol";
+import "./TrustusTest.sol";
 
-contract NFTPriceConsumer is Trustus, AccessControl {
+contract NFTPriceConsumerTest is TrustusTest, AccessControl {
     using SafeMath for uint256;
     
     // We should exclude this modifier as verifyPacket is now solving problem
@@ -44,7 +44,7 @@ contract NFTPriceConsumer is Trustus, AccessControl {
     }
 
     // I erase onlyConfigurator modifier from original NFTPriceConsumer contract based on Trustus
-    function setFloorPrice(bytes32 _request, address _nftProject, TrustusPacket memory _packet) public verifyPacket(_request, _packet) {
+    function setFloorPrice(bytes32 _request, address _nftProject, TrustusPacket calldata _packet) public verifyPacket(_request, _packet) {
         if (lastIndex[_nftProject] < window) {
             floorPrices[_nftProject][lastIndex[_nftProject]] = _packet.payload;
         } else {

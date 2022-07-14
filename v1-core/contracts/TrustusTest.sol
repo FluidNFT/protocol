@@ -4,12 +4,12 @@ pragma solidity ^0.8.4;
 /// @author zefram.eth
 /// @notice Trust-minimized method for accessing offchain data onchain
 
-abstract contract Trustus {
+abstract contract TrustusTest {
 
     /// -----------------------------------------------------------------------
     /// Structs
     /// -----------------------------------------------------------------------
-     /// @param v Part of the ECDSA signature
+    /// @param v Part of the ECDSA signature
     /// @param r Part of the ECDSA signature
     /// @param s Part of the ECDSA signature
     /// @param request Identifier for verifying the packet is what is desired
@@ -61,7 +61,7 @@ abstract contract Trustus {
     /// @dev The deadline, request, and signature are verified.
     /// @param request The identifier for the requested payload
     /// @param packet The packet provided by the offchain data provider
-    modifier verifyPacket(bytes32 request, TrustusPacket memory packet) {
+    modifier verifyPacket(bytes32 request, TrustusPacket calldata packet) {
         if (!_verifyPacket(request, packet)) revert Trustus__InvalidPacket();
         _;
     }
@@ -71,7 +71,7 @@ abstract contract Trustus {
     /// -----------------------------------------------------------------------
 
     constructor() {
-        INITIAL_CHAIN_ID = block.chainid;
+        INITIAL_CHAIN_ID = 42;
         INITIAL_DOMAIN_SEPARATOR = _computeDomainSeparator();
     }
 
@@ -89,7 +89,7 @@ abstract contract Trustus {
     /// @param packet The packet provided by the offchain data provider
     /// @return success True if the packet is valid, false otherwise
     
-    function _verifyPacket(bytes32 request, TrustusPacket memory packet)
+    function _verifyPacket(bytes32 request, TrustusPacket calldata packet)
         internal
         virtual
         returns (bool success)
@@ -145,7 +145,7 @@ abstract contract Trustus {
     /// @notice The domain separator used by EIP-712
     function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {
             return
-                block.chainid == INITIAL_CHAIN_ID
+            42 == INITIAL_CHAIN_ID
                 ? INITIAL_DOMAIN_SEPARATOR
                 : _computeDomainSeparator();
     }
@@ -159,8 +159,8 @@ abstract contract Trustus {
                     ),
                     keccak256("Trustus"),
                     keccak256("1"),
-                    block.chainid,
-                    address(this)
+                    42,
+                    0xC66cd21E45265e4A7bbd2B66a02bfaa3247f20F5
                 )
             );
     }
